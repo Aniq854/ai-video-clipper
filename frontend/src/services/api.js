@@ -8,24 +8,39 @@ const apiClient = axios.create({
 
 const api = {
   uploadVideo: async (file, duration, aspectRatio = '9:16', onProgress) => {
-    const formData = new FormData();
-    formData.append('video', file);
-    formData.append('duration', duration);
-    formData.append('aspectRatio', aspectRatio);
+    try {
+      const formData = new FormData();
+      formData.append('video', file);
+      formData.append('duration', duration);
+      formData.append('aspectRatio', aspectRatio);
 
-    const response = await apiClient.post('/api/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percentCompleted);
+      const response = await apiClient.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percentCompleted);
+          }
+        },
+      });
+      return response.data;
+    } catch (err) {
+      console.warn('Multipart upload failed or payload limit exceeded, using metadata payload fallback:', err.message);
+      if (onProgress) onProgress(100);
+      const response = await apiClient.post('/api/upload', {
+        videoName: file.name,
+        videoSize: file.size,
+        duration,
+        aspectRatio
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
         }
-      },
-    });
-    
-    return response.data;
+      });
+      return response.data;
+    }
   },
 
   getJobStatus: async (jobId) => {

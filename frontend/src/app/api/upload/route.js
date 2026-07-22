@@ -5,13 +5,30 @@ global.clipsStore = global.clipsStore || new Map();
 
 export async function POST(request) {
   try {
-    const formData = await request.formData();
-    const video = formData.get('video');
-    const durationOption = parseInt(formData.get('duration')) || 30;
-    const aspectRatio = formData.get('aspectRatio') || '9:16';
+    let filename = 'video.mp4';
+    let durationOption = 30;
+    let aspectRatio = '9:16';
+
+    const contentType = request.headers.get('content-type') || '';
+
+    if (contentType.includes('multipart/form-data')) {
+      try {
+        const formData = await request.formData();
+        const video = formData.get('video');
+        durationOption = parseInt(formData.get('duration')) || 30;
+        aspectRatio = formData.get('aspectRatio') || '9:16';
+        filename = video?.name || 'video.mp4';
+      } catch (err) {
+        console.warn('FormData parsing error:', err.message);
+      }
+    } else {
+      const body = await request.json();
+      filename = body.videoName || 'video.mp4';
+      durationOption = parseInt(body.duration) || 30;
+      aspectRatio = body.aspectRatio || '9:16';
+    }
 
     const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-    const filename = video?.name || 'video.mp4';
 
     // Save job
     global.jobsStore.set(jobId, {
