@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files (Secrets)
+.env
+.env.local
+.env.production
+
+# Storage & Temporary Files
+storage/
+storage/uploads/
+storage/audio/
+storage/clips/
+storage/thumbnails/
+storage/temp_whisper/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# System / OS
+.DS_Store
+Thumbs.db
+*.log
+
+.vercel
+.env*
