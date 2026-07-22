@@ -22,9 +22,16 @@ export default function Home() {
     try {
       setUploading(true);
       setError('');
+      
+      const blobUrl = URL.createObjectURL(file);
+
       const { jobId } = await api.uploadVideo(file, duration, aspectRatio, (p) => {
         setProgress(p);
       });
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('current_video_blob_' + jobId, blobUrl);
+      }
       
       router.push(`/result/${jobId}`);
     } catch (err) {
