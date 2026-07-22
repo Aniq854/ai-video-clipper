@@ -18,13 +18,13 @@ export default function PlatformSelector({ selected, onSelect }) {
       id: '1:1',
       label: 'Square (1:1)',
       desc: 'Instagram Feed, Facebook',
-      icon: '🟦'
+      icon: '⬛'
     }
   ];
 
   return (
     <div style={{ marginBottom: '1.5rem', width: '100%' }}>
-      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: '500' }}>
+      <label style={{ display: 'block', marginBottom: '0.5rem', color: '#a1a1aa', fontSize: '0.875rem', fontWeight: '600' }}>
         Select Platform / Size:
       </label>
 
@@ -40,21 +40,21 @@ export default function PlatformSelector({ selected, onSelect }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
-                padding: '0.75rem 1rem',
+                padding: '0.875rem 1rem',
                 borderRadius: '0.75rem',
-                border: isSelected ? '1px solid var(--accent-cyan)' : '1px solid var(--border-color)',
-                background: isSelected ? 'rgba(6, 182, 212, 0.12)' : 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
+                border: isSelected ? '1px solid #ffffff' : '1px solid #27272a',
+                background: isSelected ? '#ffffff' : '#09090b',
+                color: isSelected ? '#000000' : '#ffffff',
                 cursor: 'pointer',
                 textAlign: 'left',
-                transition: 'all 0.2s ease',
-                boxShadow: isSelected ? '0 0 15px rgba(6, 182, 212, 0.2)' : 'none'
+                transition: 'all 0.25s ease',
+                boxShadow: isSelected ? '0 0 20px rgba(255, 255, 255, 0.3)' : 'none'
               }}
             >
               <span style={{ fontSize: '1.5rem' }}>{p.icon}</span>
               <div>
-                <div style={{ fontWeight: '600', fontSize: '0.875rem' }}>{p.label}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.desc}</div>
+                <div style={{ fontWeight: '700', fontSize: '0.875rem' }}>{p.label}</div>
+                <div style={{ fontSize: '0.75rem', color: isSelected ? '#3f3f46' : '#a1a1aa' }}>{p.desc}</div>
               </div>
             </button>
           );
