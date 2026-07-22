@@ -30,7 +30,7 @@ export async function POST(request) {
 
     const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
 
-    // Dynamic Clip Generation (8 Viral Clips across timeline)
+    // Dynamic Clip Generation (15 Viral Clips across timeline for Movies & Long Videos)
     const titles = [
       `🔥 Viral Hook & High Energy Peak`,
       `🎬 Best Emotional Scene Highlight`,
@@ -39,7 +39,14 @@ export async function POST(request) {
       `🚀 Explosive Opening Scene`,
       `💥 Mind-Blowing Climax Moment`,
       `🎯 High Engagement Q&A Highlight`,
-      `🏆 Top Rating Final Scene`
+      `🏆 Top Rating Final Scene`,
+      `✨ Dramatic Reveal & Turning Point`,
+      `👑 Unforgettable Iconic Moment`,
+      `🔥 Shocking Truth & High Tension`,
+      `💡 Inspiring Speech & Golden Advice`,
+      `🌟 Epic Performance Highlight`,
+      `🎬 Must-Watch Audience Favorite`,
+      `⚡ High-Speed Action Sequence`
     ];
 
     const reasons = [
@@ -50,13 +57,20 @@ export async function POST(request) {
       `Explosive opening hook designed to maximize first 3-second retention.`,
       `High-intensity peak moment with strong emotional payoff.`,
       `Interactive moment featuring key insight and audience resonance.`,
-      `Perfect wrap-up scene with high shareability metrics.`
+      `Perfect wrap-up scene with high shareability metrics.`,
+      `Major plot development and emotional climax scene.`,
+      `Iconic highlight praised for exceptional dialogue and delivery.`,
+      `Tense confrontation scene with maximum viewer retention.`,
+      `Powerful message and memorable takeaway quote.`,
+      `Standout performance segment extracted from main timeline.`,
+      `Fan-favorite scene curated for maximum social media reach.`,
+      `Fast-paced sequence engineered for high engagement.`
     ];
 
-    const scores = [9.9, 9.7, 9.5, 9.4, 9.2, 9.0, 8.8, 8.6];
+    const scores = [9.9, 9.8, 9.7, 9.6, 9.5, 9.4, 9.3, 9.2, 9.1, 9.0, 8.9, 8.8, 8.7, 8.6, 8.5];
 
-    const generatedClips = Array.from({ length: 8 }).map((_, index) => {
-      const start = index * (durationOption + 15) + 5;
+    const generatedClips = Array.from({ length: 15 }).map((_, index) => {
+      const start = index * (durationOption + 20) + 10;
       const end = start + durationOption;
       return {
         _id: `clip_${jobId}_${index + 1}`,
