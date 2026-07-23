@@ -162,10 +162,10 @@ app.post('/api/youtube/clip', async (req, res) => {
     // Try stream-copy first (fast), fallback to re-encode (accurate)
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
+        .overwrite()
         .setStartTime(trimStart)
         .setDuration(duration)
         .output(trimmedPath)
-        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Trimmed (stream-copy): ${trimmedPath}`);
@@ -175,10 +175,10 @@ app.post('/api/youtube/clip', async (req, res) => {
           console.warn('FFmpeg stream-copy failed, trying re-encode:', err.message);
           // Re-encode fallback for accurate cuts
           ffmpeg(downloadPath)
+            .overwrite()
             .setStartTime(trimStart)
             .setDuration(duration)
             .output(trimmedPath)
-            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Trimmed (re-encoded): ${trimmedPath}`);
@@ -266,19 +266,19 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
     // Try stream-copy first, fallback to re-encode for accurate cuts
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
+        .overwrite()
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', resolve)
         .on('error', (err) => {
           console.warn('[BG] Stream-copy failed, re-encoding:', err.message);
           ffmpeg(downloadPath)
+            .overwrite()
             .setStartTime(0)
             .setDuration(duration)
             .output(cachedFilePath)
-            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', resolve)
             .on('error', reject)
@@ -383,10 +383,10 @@ app.get('/api/youtube/stream', async (req, res) => {
     // Try stream-copy first, fallback to re-encode for accurate cuts
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
+        .overwrite()
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Cached stream generated (stream-copy): ${cachedFilePath}`);
@@ -395,10 +395,10 @@ app.get('/api/youtube/stream', async (req, res) => {
         .on('error', (err) => {
           console.warn('FFmpeg stream-copy error, re-encoding:', err.message);
           ffmpeg(downloadPath)
+            .overwrite()
             .setStartTime(0)
             .setDuration(duration)
             .output(cachedFilePath)
-            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Cached stream generated (re-encoded): ${cachedFilePath}`);
@@ -464,10 +464,10 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
     // Try stream-copy first (fast), fallback to re-encode (accurate)
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
+        .overwrite()
         .setStartTime(startTime)
         .setDuration(duration)
         .output(outputPath)
-        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Local trim done (stream-copy): ${outputPath}`);
@@ -476,10 +476,10 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
         .on('error', (err) => {
           console.warn('Stream-copy failed, re-encoding:', err.message);
           ffmpeg(inputPath)
+            .overwrite()
             .setStartTime(startTime)
             .setDuration(duration)
             .output(outputPath)
-            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Local trim done (re-encoded): ${outputPath}`);
