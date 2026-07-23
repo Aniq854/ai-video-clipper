@@ -466,8 +466,8 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
           console.log(`✅ Local trim done (stream-copy): ${outputPath}`);
           resolve();
         })
-        .on('error', (err) => {
-          console.warn('Stream-copy failed, re-encoding:', err.message);
+        .on('error', (err, stdout, stderr) => {
+          console.warn(`Stream-copy failed. Error: ${err.message}. Stderr: ${stderr}`);
           ffmpeg(inputPath)
             .setStartTime(startTime)
             .setDuration(duration)
@@ -477,7 +477,10 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
               console.log(`✅ Local trim done (re-encoded): ${outputPath}`);
               resolve();
             })
-            .on('error', reject)
+            .on('error', (err2, stdout2, stderr2) => {
+              console.error(`Re-encode failed. Error: ${err2.message}. Stderr: ${stderr2}`);
+              reject(err2);
+            })
             .run();
         })
         .run();
