@@ -82,7 +82,7 @@ export default function ClipCard({ clip }) {
 
   const handleDownload = () => {
     if (isYoutube) {
-      window.open(`https://www.youtube.com/watch?v=${clip.youtubeId}&t=${startTime}s`, '_blank');
+      window.open(`https://ssyoutube.com/watch?v=${clip.youtubeId}`, '_blank');
       return;
     }
     if (typeof window !== 'undefined') {
@@ -90,7 +90,7 @@ export default function ClipCard({ clip }) {
       if (blobUrl) {
         const a = document.createElement('a');
         a.href = blobUrl;
-        a.download = `${clip.title || 'clip'}.mp4`;
+        a.download = `${clip.title || 'clip'}_${clipDuration}s.mp4`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -161,8 +161,8 @@ export default function ClipCard({ clip }) {
         </h4>
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-          <span style={{ fontSize: '0.75rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)' }}>
-            ⏱️ {formatTime(startTime)} - {formatTime(endTime)} ({clipDuration}s)
+          <span style={{ fontSize: '0.75rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', color: '#ffffff', fontWeight: '600' }}>
+            ⏱️ {formatTime(startTime)} - {formatTime(endTime)} ({clipDuration}s Cut)
           </span>
           <span className={`score-badge ${getScoreColorClass(clip.viralityScore)}`}>
             Score: {clip.viralityScore}/10
@@ -174,13 +174,38 @@ export default function ClipCard({ clip }) {
         </p>
       </div>
 
-      <button 
-        onClick={handleDownload}
-        className="btn-secondary" 
-        style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
-      >
-        {isYoutube ? 'Open YouTube Clip ↗' : 'Download Clip'}
-      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {isYoutube ? (
+          <>
+            <a 
+              href={`https://ssyoutube.com/watch?v=${clip.youtubeId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary" 
+              style={{ width: '100%', display: 'flex', justifyContent: 'center', textDecoration: 'none', textAlign: 'center' }}
+            >
+              📥 Download {clipDuration}s MP4 Clip
+            </a>
+            <a 
+              href={`https://www.youtube.com/watch?v=${clip.youtubeId}&t=${startTime}s`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary" 
+              style={{ width: '100%', display: 'flex', justifyContent: 'center', textDecoration: 'none', textAlign: 'center' }}
+            >
+              ▶ Open at {formatTime(startTime)} on YouTube
+            </a>
+          </>
+        ) : (
+          <button 
+            onClick={handleDownload}
+            className="btn-primary" 
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
+          >
+            📥 Download {clipDuration}s Cut MP4 Clip
+          </button>
+        )}
+      </div>
     </div>
   );
 }
