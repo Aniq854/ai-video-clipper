@@ -186,6 +186,90 @@ app.post('/api/youtube/clip', async (req, res) => {
     } catch (e) { /* ignore */ }
     res.status(500).json({ error: 'Failed to create clip', message: err.message });
   }
+// Global set to track active background clip processing tasks
+global.activeTasks = global.activeTasks || new Set();
+
+// Background clip generator
+async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, taskId) {
+  const duration = end - start;
+  const clipId = `bg_${uuidv4().substring(0, 8)}`;
+  const downloadPath = path.join(TEMP_DIR, `${clipId}_full.mp4`);
+  
+  try {
+    console.log(`[BG] Starting download: ${youtubeId} (${start}s - ${end}s)`);
+    const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+    const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+
+    await new Promise((resolve, reject) => {
+      exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
+        if (error) {
+          console.warn('[BG] yt-dlp sectioned failed, trying fallback...');
+          const fallbackCmd = `"${ytdlpPath}" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
+          exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
+            if (err2) reject(new Error(`yt-dlp failed: ${serr2}`));
+            else resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    if (!fs.existsSync(downloadPath)) {
+      throw new Error('Downloaded file not found');
+    }
+
+    // Trim the downloaded video using FFmpeg
+    await new Promise((resolve, reject) => {
+      ffmpeg(downloadPath)
+        .setStartTime(0)
+        .setDuration(duration)
+        .output(cachedFilePath)
+        .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-movflags', '+faststart'])
+        .on('end', resolve)
+        .on('error', reject)
+        .run();
+    });
+
+    console.log(`[BG] Done! Cached clip generated: ${cachedFilePath}`);
+  } catch (err) {
+    console.error(`[BG] Generation failed for ${taskId}:`, err.message);
+  } finally {
+    try {
+      if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
+    } catch (e) {}
+    global.activeTasks.delete(taskId);
+  }
+}
+
+// ===== YOUTUBE CLIP PREPARATION STATUS =====
+// GET /api/youtube/status?youtubeId=...&startTime=...&endTime=...
+app.get('/api/youtube/status', async (req, res) => {
+  const { youtubeId, startTime, endTime } = req.query;
+
+  if (!youtubeId) {
+    return res.status(400).json({ error: 'youtubeId is required' });
+  }
+
+  const start = parseFloat(startTime) || 0;
+  const end = parseFloat(endTime) || (start + 30);
+  const cachedFileName = `stream_${youtubeId}_${start}_${end}.mp4`;
+  const cachedFilePath = path.join(TEMP_DIR, cachedFileName);
+
+  if (fs.existsSync(cachedFilePath)) {
+    return res.json({ ready: true });
+  }
+
+  // Start background task if it's not already running
+  const taskId = `${youtubeId}_${start}_${end}`;
+  if (!global.activeTasks.has(taskId)) {
+    global.activeTasks.add(taskId);
+    prepareClipInBackground(youtubeId, start, end, cachedFilePath, taskId).catch(err => {
+      console.error('Background process error:', err);
+    });
+  }
+
+  res.json({ ready: false, message: 'Clip is being generated on the server...' });
 });
 
 // ===== STREAMING YOUTUBE CLIP ENDPOINT =====

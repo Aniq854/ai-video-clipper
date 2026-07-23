@@ -10,6 +10,8 @@ export default function ClipCard({ clip }) {
   const [clipCurrentTime, setClipCurrentTime] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [prepareMessage, setPrepareMessage] = useState('');
   const videoRef = useRef(null);
 
   const startTime = clip.startTime || 0;
@@ -22,15 +24,13 @@ export default function ClipCard({ clip }) {
   const playEnd = isStreamed ? clipDuration : endTime;
 
   useEffect(() => {
-    if (isYoutube) {
-      setVideoSrc(`${CLIP_SERVER}/api/youtube/stream?youtubeId=${clip.youtubeId}&startTime=${startTime}&endTime=${endTime}`);
-    } else if (typeof window !== 'undefined') {
+    if (!isYoutube && typeof window !== 'undefined') {
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
         setVideoSrc(blobUrl);
       }
     }
-  }, [clip, isYoutube, startTime, endTime]);
+  }, [clip, isYoutube]);
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -52,17 +52,83 @@ export default function ClipCard({ clip }) {
     }
   };
 
-  const togglePlay = () => {
+  const checkStatusAndPlay = async () => {
+    if (!isYoutube) {
+      playVideo();
+      return;
+    }
+
+    try {
+      setIsPreparing(true);
+      setPrepareMessage('Waking up server...');
+
+      const checkStatus = async () => {
+        try {
+          const res = await fetch(`${CLIP_SERVER}/api/youtube/status?youtubeId=${clip.youtubeId}&startTime=${startTime}&endTime=${endTime}`);
+          const data = await res.json();
+          
+          if (data.ready) {
+            setVideoSrc(`${CLIP_SERVER}/api/youtube/stream?youtubeId=${clip.youtubeId}&startTime=${startTime}&endTime=${endTime}`);
+            setIsPreparing(false);
+            setTimeout(() => {
+              if (videoRef.current) {
+                videoRef.current.play();
+                setIsPlaying(true);
+              }
+            }, 300);
+            return true;
+          } else {
+            setPrepareMessage('Processing clip (10-15s)...');
+            return false;
+          }
+        } catch (e) {
+          console.warn('Status check error:', e);
+          return false;
+        }
+      };
+
+      const isReady = await checkStatus();
+      if (isReady) return;
+
+      const interval = setInterval(async () => {
+        const ready = await checkStatus();
+        if (ready) {
+          clearInterval(interval);
+        }
+      }, 2500);
+
+      setTimeout(() => {
+        clearInterval(interval);
+        setIsPreparing(prev => {
+          if (prev) {
+            alert('Clip preparation timed out. Please try again.');
+          }
+          return false;
+        });
+      }, 90000);
+
+    } catch (err) {
+      console.error(err);
+      setIsPreparing(false);
+      alert('Failed to connect to clip server.');
+    }
+  };
+
+  const playVideo = () => {
     if (!videoRef.current) return;
+    if (videoRef.current.currentTime >= playEnd || videoRef.current.currentTime < playStart) {
+      videoRef.current.currentTime = playStart;
+    }
+    videoRef.current.play();
+    setIsPlaying(true);
+  };
+
+  const togglePlay = () => {
     if (isPlaying) {
-      videoRef.current.pause();
+      if (videoRef.current) videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      if (videoRef.current.currentTime >= playEnd || videoRef.current.currentTime < playStart) {
-        videoRef.current.currentTime = playStart;
-      }
-      videoRef.current.play();
-      setIsPlaying(true);
+      checkStatusAndPlay();
     }
   };
 
@@ -226,7 +292,25 @@ export default function ClipCard({ clip }) {
 
   return (
     <div className="card clip-card">
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .play-overlay:hover {
+          transform: scale(1.1);
+          background: rgba(0,0,0,0.8) !important;
+        }
+      `}</style>
       <div style={{ position: 'relative', width: '100%', paddingTop: '177.77%', backgroundColor: '#000', borderRadius: '0.5rem', overflow: 'hidden', marginBottom: '1rem' }}>
+        {/* Loading Overlay */}
+        {isPreparing && (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20, gap: '1rem', color: '#fff', padding: '1rem', textAlign: 'center' }}>
+            <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTop: '4px solid #ffffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+            <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{prepareMessage}</span>
+          </div>
+        )}
+
         {videoSrc ? (
           <>
             <video
@@ -253,8 +337,13 @@ export default function ClipCard({ clip }) {
             </div>
           </>
         ) : (
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-            Loading preview...
+          <div 
+            onClick={togglePlay}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', backgroundImage: clip.thumbnailUrl ? `url(${clip.thumbnailUrl})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <div style={{ background: 'rgba(0,0,0,0.6)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', border: '2px solid #ffffff' }} className="play-overlay">
+              <span style={{ color: '#ffffff', fontSize: '1.5rem', marginLeft: '4px' }}>▶</span>
+            </div>
           </div>
         )}
       </div>
