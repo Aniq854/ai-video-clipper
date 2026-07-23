@@ -222,14 +222,27 @@ export default function ClipCard({ clip }) {
       setDownloadProgress(0);
 
       const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1080;
-      canvas.height = video.videoHeight || 1920;
-      const ctx = canvas.getContext('2d');
+      
+      // Ensure video is unmuted and has volume during recording to capture audio
+      const originalMuted = video.muted;
+      const originalVolume = video.volume;
+      video.muted = false;
+      video.volume = 1.0;
 
-      const canvasStream = canvas.captureStream(30);
+      let streamToRecord = null;
+      if (video.captureStream) {
+        streamToRecord = video.captureStream();
+      } else if (video.mozCaptureStream) {
+        streamToRecord = video.mozCaptureStream();
+      } else if (video.webkitCaptureStream) {
+        streamToRecord = video.webkitCaptureStream();
+      }
 
-      const mediaRecorder = new MediaRecorder(canvasStream, {
+      if (!streamToRecord) {
+        throw new Error('captureStream is not supported in this browser.');
+      }
+
+      const mediaRecorder = new MediaRecorder(streamToRecord, {
         mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
           ? 'video/webm;codecs=vp9'
           : 'video/webm'
@@ -241,6 +254,10 @@ export default function ClipCard({ clip }) {
       };
 
       mediaRecorder.onstop = () => {
+        // Restore original audio settings
+        video.muted = originalMuted;
+        video.volume = originalVolume;
+
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -260,18 +277,17 @@ export default function ClipCard({ clip }) {
       mediaRecorder.start();
       video.play();
 
-      const drawFrame = () => {
+      const trackProgress = () => {
         if (video.currentTime >= endTime || video.paused) {
           video.pause();
           mediaRecorder.stop();
           return;
         }
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const elapsed = video.currentTime - startTime;
         setDownloadProgress(Math.min(100, Math.round((elapsed / clipDuration) * 100)));
-        requestAnimationFrame(drawFrame);
+        requestAnimationFrame(trackProgress);
       };
-      drawFrame();
+      trackProgress();
     } catch (err) {
       console.error('Local trim error:', err);
       setDownloading(false);
