@@ -83,7 +83,23 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  try {
+    const { execSync } = require('child_process');
+    const ffmpegVersion = execSync(`"${ffmpegInstaller.path}" -version`, { env: execEnv }).toString().split('\n')[0];
+    const ffprobeVersion = execSync(`"${ffprobeInstaller.path}" -version`, { env: execEnv }).toString().split('\n')[0];
+    res.json({ 
+      status: 'ok', 
+      ffmpeg: ffmpegVersion, 
+      ffprobe: ffprobeVersion,
+      ffmpegPath: ffmpegInstaller.path
+    });
+  } catch (err) {
+    res.json({ 
+      status: 'error', 
+      message: err.message, 
+      path: ffmpegInstaller.path 
+    });
+  }
 });
 
 // ===== YOUTUBE CLIP ENDPOINT =====
