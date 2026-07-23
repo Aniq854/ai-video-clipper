@@ -35,9 +35,10 @@ console.warn = (...args) => {
 
 const ffmpegDir = path.dirname(ffmpegInstaller.path);
 const ffprobeDir = path.dirname(ffprobeInstaller.path);
+const pathSep = path.delimiter;
 const execEnv = {
   ...process.env,
-  PATH: `${ffmpegDir}:${ffprobeDir}:${process.env.PATH}`
+  PATH: `${ffmpegDir}${pathSep}${ffprobeDir}${pathSep}${process.env.PATH}`
 };
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -108,13 +109,15 @@ app.post('/api/youtube/clip', async (req, res) => {
 
     // Step 1: Download the YouTube video using yt-dlp
     // Only download the portion we need using --download-sections
+    let usedSections = true;
     const ytCmd = `"${ytdlpPath}" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
         if (error) {
           console.error('yt-dlp error:', stderr);
-          // Fallback: try downloading without sections
+          usedSections = false;
+          // Fallback: try downloading without sections (full video)
           const fallbackCmd = `"${ytdlpPath}" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
           exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
             if (err2) {
@@ -133,26 +136,45 @@ app.post('/api/youtube/clip', async (req, res) => {
       return res.status(500).json({ error: 'Failed to download video' });
     }
 
-    console.log(`📥 Downloaded: ${downloadPath}`);
+    console.log(`📥 Downloaded: ${downloadPath} (sections=${usedSections})`);
 
     // Step 2: Trim the video to exact timestamps using FFmpeg
+    // If yt-dlp used --download-sections, the file already starts at 0
+    // If fallback (full video), we need to seek to the actual start time
+    const trimStart = usedSections ? 0 : start;
+
+    // Try stream-copy first (fast), fallback to re-encode (accurate)
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .setStartTime(0) // Already sectioned by yt-dlp, or trim from full
+        .setStartTime(trimStart)
         .setDuration(duration)
         .output(trimmedPath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
-          console.log(`✅ Trimmed: ${trimmedPath}`);
+          console.log(`✅ Trimmed (stream-copy): ${trimmedPath}`);
           resolve();
         })
         .on('error', (err) => {
-          console.error('FFmpeg error:', err);
-          // If FFmpeg trim fails, use the downloaded file as-is
-          if (fs.existsSync(downloadPath)) {
-            fs.copyFileSync(downloadPath, trimmedPath);
-          }
-          resolve();
+          console.warn('FFmpeg stream-copy failed, trying re-encode:', err.message);
+          // Re-encode fallback for accurate cuts
+          ffmpeg(downloadPath)
+            .setStartTime(trimStart)
+            .setDuration(duration)
+            .output(trimmedPath)
+            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .on('end', () => {
+              console.log(`✅ Trimmed (re-encoded): ${trimmedPath}`);
+              resolve();
+            })
+            .on('error', (err2) => {
+              console.error('FFmpeg re-encode also failed:', err2.message);
+              // Last resort: use the downloaded file as-is
+              if (fs.existsSync(downloadPath)) {
+                fs.copyFileSync(downloadPath, trimmedPath);
+              }
+              resolve();
+            })
+            .run();
         })
         .run();
     });
@@ -187,6 +209,8 @@ app.post('/api/youtube/clip', async (req, res) => {
     } catch (e) { /* ignore */ }
     res.status(500).json({ error: 'Failed to create clip', message: err.message });
   }
+});
+
 // Global set to track active background clip processing tasks
 global.activeTasks = global.activeTasks || new Set();
 
@@ -221,14 +245,25 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
     }
 
     // Trim the downloaded video using FFmpeg
+    // Try stream-copy first, fallback to re-encode for accurate cuts
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', resolve)
-        .on('error', reject)
+        .on('error', (err) => {
+          console.warn('[BG] Stream-copy failed, re-encoding:', err.message);
+          ffmpeg(downloadPath)
+            .setStartTime(0)
+            .setDuration(duration)
+            .output(cachedFilePath)
+            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .on('end', resolve)
+            .on('error', reject)
+            .run();
+        })
         .run();
     });
 
@@ -325,22 +360,36 @@ app.get('/api/youtube/stream', async (req, res) => {
     }
 
     // Trim the video to exact timestamps using FFmpeg and cache it
+    // Try stream-copy first, fallback to re-encode for accurate cuts
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
-          console.log(`✅ Cached stream generated: ${cachedFilePath}`);
+          console.log(`✅ Cached stream generated (stream-copy): ${cachedFilePath}`);
           resolve();
         })
         .on('error', (err) => {
-          console.error('FFmpeg stream error:', err);
-          if (fs.existsSync(downloadPath)) {
-            fs.copyFileSync(downloadPath, cachedFilePath);
-          }
-          resolve();
+          console.warn('FFmpeg stream-copy error, re-encoding:', err.message);
+          ffmpeg(downloadPath)
+            .setStartTime(0)
+            .setDuration(duration)
+            .output(cachedFilePath)
+            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .on('end', () => {
+              console.log(`✅ Cached stream generated (re-encoded): ${cachedFilePath}`);
+              resolve();
+            })
+            .on('error', (err2) => {
+              console.error('FFmpeg re-encode also failed:', err2.message);
+              if (fs.existsSync(downloadPath)) {
+                fs.copyFileSync(downloadPath, cachedFilePath);
+              }
+              resolve();
+            })
+            .run();
         })
         .run();
     });
@@ -365,33 +414,63 @@ app.get('/api/youtube/stream', async (req, res) => {
 
 
 // ===== LOCAL VIDEO TRIM ENDPOINT =====
-// Kept for future use with uploaded videos
-app.post('/api/trim', express.raw({ type: 'video/*', limit: '500mb' }), async (req, res) => {
+// Used for trimming uploaded local videos via the frontend
+const multer = require('multer');
+const localUpload = multer({
+  dest: TEMP_DIR,
+  limits: { fileSize: 500 * 1024 * 1024 } // 500MB
+});
+
+app.post('/api/trim', localUpload.single('video'), async (req, res) => {
   const startTime = parseFloat(req.query.start) || 0;
   const endTime = parseFloat(req.query.end) || 30;
   const duration = endTime - startTime;
   const clipId = `local_${uuidv4().substring(0, 8)}`;
-  const inputPath = path.join(TEMP_DIR, `${clipId}_input.mp4`);
+  const inputPath = req.file ? req.file.path : path.join(TEMP_DIR, `${clipId}_input.mp4`);
   const outputPath = path.join(TEMP_DIR, `${clipId}_output.mp4`);
 
   try {
-    fs.writeFileSync(inputPath, req.body);
+    // If no multer file (raw body fallback)
+    if (!req.file && req.body && Buffer.isBuffer(req.body)) {
+      fs.writeFileSync(inputPath, req.body);
+    } else if (!req.file) {
+      return res.status(400).json({ error: 'No video file provided' });
+    }
 
+    console.log(`✂️ Local trim: ${startTime}s -> ${endTime}s (${duration}s)`);
+
+    // Try stream-copy first (fast), fallback to re-encode (accurate)
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .setStartTime(startTime)
         .setDuration(duration)
         .output(outputPath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
-        .on('end', resolve)
-        .on('error', reject)
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .on('end', () => {
+          console.log(`✅ Local trim done (stream-copy): ${outputPath}`);
+          resolve();
+        })
+        .on('error', (err) => {
+          console.warn('Stream-copy failed, re-encoding:', err.message);
+          ffmpeg(inputPath)
+            .setStartTime(startTime)
+            .setDuration(duration)
+            .output(outputPath)
+            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .on('end', () => {
+              console.log(`✅ Local trim done (re-encoded): ${outputPath}`);
+              resolve();
+            })
+            .on('error', reject)
+            .run();
+        })
         .run();
     });
 
     const stat = fs.statSync(outputPath);
     res.setHeader('Content-Type', 'video/mp4');
     res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Disposition', `attachment; filename="clip_${duration}s.mp4"`);
+    res.setHeader('Content-Disposition', `attachment; filename="clip_${Math.round(duration)}s.mp4"`);
 
     const stream = fs.createReadStream(outputPath);
     stream.pipe(res);
@@ -405,6 +484,7 @@ app.post('/api/trim', express.raw({ type: 'video/*', limit: '500mb' }), async (r
       }, 5000);
     });
   } catch (err) {
+    console.error('Local trim error:', err);
     try {
       if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
       if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);

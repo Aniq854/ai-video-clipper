@@ -214,131 +214,83 @@ export default function ClipCard({ clip }) {
       return;
     }
 
-    // Local video: in-browser trim using Canvas + MediaRecorder
-    if (!videoRef.current) return;
-
+    // Local video: server-side trim using clipserver's FFmpeg /api/trim endpoint
     try {
       setDownloading(true);
-      setDownloadProgress(0);
+      setDownloadProgress(5);
 
-      const video = videoRef.current;
+      // Get the video blob from sessionStorage
+      const blobUrl = typeof window !== 'undefined' 
+        ? sessionStorage.getItem('current_video_blob_' + clip.jobId) 
+        : null;
+
+      if (!blobUrl) {
+        throw new Error('Video file not found in session. Please re-upload.');
+      }
+
+      setDownloadProgress(10);
+
+      // Fetch the blob from the object URL
+      const blobResponse = await fetch(blobUrl);
+      const videoBlob = await blobResponse.blob();
+
+      setDownloadProgress(20);
+
+      // Create FormData and send to clipserver for proper FFmpeg trimming
+      const formData = new FormData();
+      formData.append('video', videoBlob, 'video.mp4');
+
+      const trimUrl = `${CLIP_SERVER}/api/trim?start=${startTime}&end=${endTime}`;
       
-      // Keep track of original state
-      const originalMuted = video.muted;
-      const originalVolume = video.volume;
-      const originalTime = video.currentTime;
-      const originalPaused = video.paused;
+      setDownloadProgress(30);
 
-      // Unmute programmatically so audio track is outputted by the element
-      video.muted = false;
-      video.volume = 1.0;
-
-      // Silently route audio using Web Audio API
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      const source = audioCtx.createMediaElementSource(video);
-      const destination = audioCtx.createMediaStreamDestination();
-      
-      // Connect to the stream recorder, but NOT to audioCtx.destination (keeps speakers silent!)
-      source.connect(destination);
-
-      let videoStream = null;
-      if (video.captureStream) {
-        videoStream = video.captureStream();
-      } else if (video.mozCaptureStream) {
-        videoStream = video.mozCaptureStream();
-      } else if (video.webkitCaptureStream) {
-        videoStream = video.webkitCaptureStream();
-      }
-
-      if (!videoStream) {
-        throw new Error('captureStream is not supported in this browser.');
-      }
-
-      // Combine video track and audio destination track
-      const videoTrack = videoStream.getVideoTracks()[0];
-      const audioTrack = destination.stream.getAudioTracks()[0];
-
-      if (!videoTrack) {
-        throw new Error('No video track found.');
-      }
-
-      const combinedStream = new MediaStream();
-      combinedStream.addTrack(videoTrack);
-      if (audioTrack) {
-        combinedStream.addTrack(audioTrack);
-      }
-
-      const mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-          ? 'video/webm;codecs=vp9'
-          : 'video/webm'
+      const response = await fetch(trimUrl, {
+        method: 'POST',
+        body: formData
       });
 
-      const chunks = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
+      setDownloadProgress(70);
 
-      mediaRecorder.onstop = () => {
-        // Restore original audio & playback settings
-        video.muted = originalMuted;
-        video.volume = originalVolume;
-        video.currentTime = playStart;
-        if (originalPaused) {
-          video.pause();
-        } else {
-          video.play();
-        }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Server trim failed');
+      }
 
-        // Clean up Web Audio context
-        try {
-          audioCtx.close();
-        } catch (e) {}
+      const trimmedBlob = await response.blob();
+      setDownloadProgress(90);
 
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${clipDuration}s.webm`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setDownloading(false);
-        setDownloadProgress(0);
-      };
+      // Download the properly trimmed MP4
+      const downloadUrl = URL.createObjectURL(trimmedBlob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${clipDuration}s.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
 
-      video.currentTime = startTime;
-      await new Promise(resolve => { video.onseeked = resolve; });
-
-      mediaRecorder.start();
-      video.play();
-
-      const trackProgress = () => {
-        if (video.currentTime >= endTime || video.paused) {
-          video.pause();
-          mediaRecorder.stop();
-          return;
-        }
-        const elapsed = video.currentTime - startTime;
-        setDownloadProgress(Math.min(100, Math.round((elapsed / clipDuration) * 100)));
-        requestAnimationFrame(trackProgress);
-      };
-      trackProgress();
+      setDownloadProgress(100);
     } catch (err) {
-      console.error('Local trim error:', err);
-      setDownloading(false);
-      // Fallback: download full video
+      console.error('Server-side trim error:', err);
+      
+      // Fallback: download full video blob from sessionStorage
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
+        alert('Clip server unavailable. Downloading full video instead.');
         const a = document.createElement('a');
         a.href = blobUrl;
-        a.download = `${clip.title || 'clip'}_${clipDuration}s.mp4`;
+        a.download = `${clip.title || 'clip'}_full.mp4`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+      } else {
+        alert('Trim failed: ' + err.message);
       }
+    } finally {
+      setTimeout(() => {
+        setDownloading(false);
+        setDownloadProgress(0);
+      }, 1000);
     }
   };
 
