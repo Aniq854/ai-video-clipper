@@ -215,82 +215,148 @@ export default function ClipCard({ clip }) {
       return;
     }
 
-    // Local video: server-side trim using clipserver's FFmpeg /api/trim endpoint
+    // Local video: smooth client-side trim using in-memory detached video element
     try {
       setDownloading(true);
-      setDownloadProgress(5);
+      setDownloadProgress(10);
 
-      // Get the video blob from sessionStorage
       const blobUrl = typeof window !== 'undefined' 
         ? sessionStorage.getItem('current_video_blob_' + clip.jobId) 
         : null;
 
-      if (!blobUrl) {
-        throw new Error('Video file not found in session. Please re-upload.');
+      const activeUrl = blobUrl || videoSrc;
+
+      if (!activeUrl) {
+        throw new Error('Video source not found. Please re-upload.');
       }
 
-      setDownloadProgress(10);
-
-      // Fetch the blob from the object URL
-      const blobResponse = await fetch(blobUrl);
-      const videoBlob = await blobResponse.blob();
+      // Create a detached offline video element for smooth recording without DOM rendering overhead
+      const offlineVideo = document.createElement('video');
+      offlineVideo.style.display = 'none';
+      offlineVideo.preload = 'auto';
+      offlineVideo.crossOrigin = 'anonymous';
+      offlineVideo.playsInline = true;
+      offlineVideo.src = activeUrl;
 
       setDownloadProgress(20);
 
-      // Create FormData and send to clipserver for proper FFmpeg trimming
-      const formData = new FormData();
-      formData.append('video', videoBlob, 'video.mp4');
-
-      const trimUrl = `${CLIP_SERVER}/api/trim?start=${startTime}&end=${endTime}`;
-      
-      setDownloadProgress(30);
-
-      const response = await axios.post(trimUrl, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        responseType: 'blob',
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            // Scale upload progress between 30% and 75%
-            const scaledProgress = 30 + Math.round((percentCompleted * 45) / 100);
-            setDownloadProgress(scaledProgress);
-          }
-        }
+      await new Promise((resolve, reject) => {
+        offlineVideo.onloadedmetadata = resolve;
+        offlineVideo.onerror = () => reject(new Error('Failed to load video metadata'));
+        // Set timeout in case metadata load hangs
+        setTimeout(() => reject(new Error('Timeout loading video metadata')), 10000);
       });
 
-      setDownloadProgress(80);
+      setDownloadProgress(30);
 
-      const trimmedBlob = response.data;
-      setDownloadProgress(90);
+      // Seek to start position
+      offlineVideo.currentTime = startTime;
+      await new Promise((resolve) => {
+        const onSeeked = () => {
+          offlineVideo.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        offlineVideo.addEventListener('seeked', onSeeked);
+      });
 
-      // Download the properly trimmed MP4
-      const downloadUrl = URL.createObjectURL(trimmedBlob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${clipDuration}s.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
+      setDownloadProgress(40);
 
-      setDownloadProgress(100);
-    } catch (err) {
-      console.error('Server-side trim error:', err);
-      
-      // Fallback: download full video blob from sessionStorage
-      const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
-      if (blobUrl) {
-        alert('Clip server unavailable. Downloading full video instead.');
+      // Audio routing (silent speaker output)
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      const source = audioCtx.createMediaElementSource(offlineVideo);
+      const destination = audioCtx.createMediaStreamDestination();
+      source.connect(destination);
+
+      // Capture stream
+      let videoStream = null;
+      if (offlineVideo.captureStream) {
+        videoStream = offlineVideo.captureStream();
+      } else if (offlineVideo.mozCaptureStream) {
+        videoStream = offlineVideo.mozCaptureStream();
+      } else if (offlineVideo.webkitCaptureStream) {
+        videoStream = offlineVideo.webkitCaptureStream();
+      }
+
+      if (!videoStream) {
+        throw new Error('Browser does not support stream capture.');
+      }
+
+      const videoTrack = videoStream.getVideoTracks()[0];
+      const audioTrack = destination.stream.getAudioTracks()[0];
+
+      const combinedStream = new MediaStream();
+      if (videoTrack) combinedStream.addTrack(videoTrack);
+      if (audioTrack) combinedStream.addTrack(audioTrack);
+
+      const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=h264')
+        ? 'video/mp4;codecs=h264'
+        : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : 'video/webm');
+
+      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
+      const chunks = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      const fileExtension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+
+      mediaRecorder.onstop = () => {
+        try {
+          audioCtx.close();
+        } catch (e) {}
+
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = blobUrl;
+        a.href = url;
+        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${clipDuration}s.${fileExtension}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        setDownloadProgress(100);
+      };
+
+      mediaRecorder.start();
+      offlineVideo.play();
+
+      // Monitor recording progress
+      await new Promise((resolve) => {
+        const interval = setInterval(() => {
+          if (offlineVideo.currentTime >= endTime || offlineVideo.paused || offlineVideo.ended) {
+            clearInterval(interval);
+            offlineVideo.pause();
+            mediaRecorder.stop();
+            resolve();
+          } else {
+            const elapsed = offlineVideo.currentTime - startTime;
+            const percent = Math.min(99, 40 + Math.round((elapsed / clipDuration) * 55));
+            setDownloadProgress(percent);
+          }
+        }, 100);
+      });
+
+    } catch (err) {
+      console.error('Client-side local trim error:', err);
+      
+      // Fallback: download full video
+      const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
+      const activeUrl = blobUrl || videoSrc;
+      if (activeUrl) {
+        alert('Trim failed, downloading full video as fallback.');
+        const a = document.createElement('a');
+        a.href = activeUrl;
         a.download = `${clip.title || 'clip'}_full.mp4`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
       } else {
-        alert('Trim failed: ' + err.message);
+        alert('Failed to download: ' + err.message);
       }
     } finally {
       setTimeout(() => {
