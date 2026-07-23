@@ -108,7 +108,7 @@ app.post('/api/youtube/clip', async (req, res) => {
 
     // Step 1: Download the YouTube video using yt-dlp
     // Only download the portion we need using --download-sections
-    const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
@@ -141,7 +141,7 @@ app.post('/api/youtube/clip', async (req, res) => {
         .setStartTime(0) // Already sectioned by yt-dlp, or trim from full
         .setDuration(duration)
         .output(trimmedPath)
-        .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
         .on('end', () => {
           console.log(`✅ Trimmed: ${trimmedPath}`);
           resolve();
@@ -199,7 +199,7 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
   try {
     console.log(`[BG] Starting download: ${youtubeId} (${start}s - ${end}s)`);
     const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
-    const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
@@ -226,7 +226,7 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
         .on('end', resolve)
         .on('error', reject)
         .run();
@@ -302,7 +302,7 @@ app.get('/api/youtube/stream', async (req, res) => {
     console.log(`🎬 Downloading YouTube Stream: ${youtubeId}`);
     const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
 
-    const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
@@ -330,7 +330,7 @@ app.get('/api/youtube/stream', async (req, res) => {
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
         .on('end', () => {
           console.log(`✅ Cached stream generated: ${cachedFilePath}`);
           resolve();
@@ -382,7 +382,7 @@ app.post('/api/trim', express.raw({ type: 'video/*', limit: '500mb' }), async (r
         .setStartTime(startTime)
         .setDuration(duration)
         .output(outputPath)
-        .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-movflags', '+faststart'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
         .on('end', resolve)
         .on('error', reject)
         .run();
