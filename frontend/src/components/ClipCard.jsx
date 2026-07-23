@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 
 const CLIP_SERVER = process.env.NEXT_PUBLIC_CLIP_SERVER || 'https://clipai-server.onrender.com';
 
@@ -244,19 +245,24 @@ export default function ClipCard({ clip }) {
       
       setDownloadProgress(30);
 
-      const response = await fetch(trimUrl, {
-        method: 'POST',
-        body: formData
+      const response = await axios.post(trimUrl, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        responseType: 'blob',
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            // Scale upload progress between 30% and 75%
+            const scaledProgress = 30 + Math.round((percentCompleted * 45) / 100);
+            setDownloadProgress(scaledProgress);
+          }
+        }
       });
 
-      setDownloadProgress(70);
+      setDownloadProgress(80);
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Server trim failed');
-      }
-
-      const trimmedBlob = await response.blob();
+      const trimmedBlob = response.data;
       setDownloadProgress(90);
 
       // Download the properly trimmed MP4
