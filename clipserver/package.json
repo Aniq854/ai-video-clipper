@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "pip install yt-dlp || echo 'yt-dlp install skipped'"
+    "postinstall": "node install-ytdlp.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

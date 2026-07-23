@@ -17,31 +17,37 @@ export default function ClipCard({ clip }) {
   const clipDuration = Math.max(1, endTime - startTime);
   const isYoutube = Boolean(clip.youtubeId);
 
+  const isStreamed = isYoutube;
+  const playStart = isStreamed ? 0 : startTime;
+  const playEnd = isStreamed ? clipDuration : endTime;
+
   useEffect(() => {
-    if (!isYoutube && typeof window !== 'undefined') {
+    if (isYoutube) {
+      setVideoSrc(`${CLIP_SERVER}/api/youtube/stream?youtubeId=${clip.youtubeId}&startTime=${startTime}&endTime=${endTime}`);
+    } else if (typeof window !== 'undefined') {
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
         setVideoSrc(blobUrl);
       }
     }
-  }, [clip, isYoutube]);
+  }, [clip, isYoutube, startTime, endTime]);
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      videoRef.current.currentTime = startTime;
+      videoRef.current.currentTime = playStart;
     }
   };
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       const cur = videoRef.current.currentTime;
-      if (cur >= endTime || cur < startTime) {
-        videoRef.current.currentTime = startTime;
+      if (cur >= playEnd || cur < playStart) {
+        videoRef.current.currentTime = playStart;
         videoRef.current.pause();
         setIsPlaying(false);
         setClipCurrentTime(0);
       } else {
-        setClipCurrentTime(Math.max(0, cur - startTime));
+        setClipCurrentTime(Math.max(0, cur - playStart));
       }
     }
   };
@@ -52,8 +58,8 @@ export default function ClipCard({ clip }) {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      if (videoRef.current.currentTime >= endTime || videoRef.current.currentTime < startTime) {
-        videoRef.current.currentTime = startTime;
+      if (videoRef.current.currentTime >= playEnd || videoRef.current.currentTime < playStart) {
+        videoRef.current.currentTime = playStart;
       }
       videoRef.current.play();
       setIsPlaying(true);
@@ -62,10 +68,10 @@ export default function ClipCard({ clip }) {
 
   const handleSeek = (e) => {
     const relativePercent = parseFloat(e.target.value);
-    const newTime = startTime + (relativePercent / 100) * clipDuration;
+    const newTime = playStart + (relativePercent / 100) * clipDuration;
     if (videoRef.current) {
       videoRef.current.currentTime = newTime;
-      setClipCurrentTime(newTime - startTime);
+      setClipCurrentTime(newTime - playStart);
     }
   };
 
@@ -221,15 +227,7 @@ export default function ClipCard({ clip }) {
   return (
     <div className="card clip-card">
       <div style={{ position: 'relative', width: '100%', paddingTop: '177.77%', backgroundColor: '#000', borderRadius: '0.5rem', overflow: 'hidden', marginBottom: '1rem' }}>
-        {isYoutube ? (
-          <iframe
-            src={`https://www.youtube.com/embed/${clip.youtubeId}?start=${startTime}&end=${endTime}&autoplay=0`}
-            title={clip.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-          />
-        ) : videoSrc ? (
+        {videoSrc ? (
           <>
             <video
               ref={videoRef}
@@ -240,6 +238,7 @@ export default function ClipCard({ clip }) {
               onEnded={() => setIsPlaying(false)}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               src={videoSrc}
+              poster={isYoutube ? `https://img.youtube.com/vi/${clip.youtubeId}/hqdefault.jpg` : null}
             />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

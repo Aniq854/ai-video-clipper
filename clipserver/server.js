@@ -18,17 +18,24 @@ app.use(express.json());
 const TEMP_DIR = path.join(__dirname, 'temp');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-// Check if yt-dlp is available
+// Check if local yt-dlp is available, else try global or fallback
+const localYtdlp = path.join(__dirname, 'bin', 'yt-dlp');
 let ytdlpPath = 'yt-dlp';
-try {
-  execSync('yt-dlp --version', { stdio: 'pipe' });
-  console.log('✅ yt-dlp found');
-} catch {
+
+if (fs.existsSync(localYtdlp)) {
+  ytdlpPath = localYtdlp;
+  console.log('✅ Using local yt-dlp binary:', ytdlpPath);
+} else {
   try {
-    execSync('python3 -m pip install yt-dlp', { stdio: 'pipe' });
-    console.log('✅ yt-dlp installed via pip');
+    execSync('yt-dlp --version', { stdio: 'pipe' });
+    console.log('✅ System yt-dlp found');
   } catch {
-    console.warn('⚠️ yt-dlp not available - YouTube features will be limited');
+    try {
+      execSync('python3 -m pip install yt-dlp', { stdio: 'pipe' });
+      console.log('✅ yt-dlp installed via pip');
+    } catch {
+      console.warn('⚠️ yt-dlp not available on system, using fallback');
+    }
   }
 }
 
@@ -64,14 +71,14 @@ app.post('/api/youtube/clip', async (req, res) => {
 
     // Step 1: Download the YouTube video using yt-dlp
     // Only download the portion we need using --download-sections
-    const ytCmd = `yt-dlp -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000 }, (error, stdout, stderr) => {
         if (error) {
           console.error('yt-dlp error:', stderr);
           // Fallback: try downloading without sections
-          const fallbackCmd = `yt-dlp -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
+          const fallbackCmd = `"${ytdlpPath}" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
           exec(fallbackCmd, { timeout: 180000 }, (err2, out2, serr2) => {
             if (err2) {
               reject(new Error(`yt-dlp failed: ${serr2}`));
@@ -144,6 +151,97 @@ app.post('/api/youtube/clip', async (req, res) => {
     res.status(500).json({ error: 'Failed to create clip', message: err.message });
   }
 });
+
+// ===== STREAMING YOUTUBE CLIP ENDPOINT =====
+// GET /api/youtube/stream?youtubeId=...&startTime=...&endTime=...
+app.get('/api/youtube/stream', async (req, res) => {
+  const { youtubeId, startTime, endTime } = req.query;
+
+  if (!youtubeId) {
+    return res.status(400).json({ error: 'youtubeId query parameter is required' });
+  }
+
+  const start = parseFloat(startTime) || 0;
+  const end = parseFloat(endTime) || (start + 30);
+  const duration = end - start;
+  const cachedFileName = `stream_${youtubeId}_${start}_${end}.mp4`;
+  const cachedFilePath = path.join(TEMP_DIR, cachedFileName);
+
+  // If already cached, serve instantly!
+  if (fs.existsSync(cachedFilePath)) {
+    console.log(`🎯 Serving cached stream: ${cachedFileName}`);
+    return res.sendFile(cachedFilePath);
+  }
+
+  const clipId = `stream_${uuidv4().substring(0, 8)}`;
+  const downloadPath = path.join(TEMP_DIR, `${clipId}_full.mp4`);
+  const trimmedPath = path.join(TEMP_DIR, `${clipId}_trimmed.mp4`);
+
+  try {
+    console.log(`🎬 Downloading YouTube Stream: ${youtubeId}`);
+    const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+
+    const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+
+    await new Promise((resolve, reject) => {
+      exec(ytCmd, { timeout: 120000 }, (error, stdout, stderr) => {
+        if (error) {
+          console.error('yt-dlp stream error:', stderr);
+          // Fallback: try downloading without sections
+          const fallbackCmd = `"${ytdlpPath}" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
+          exec(fallbackCmd, { timeout: 180000 }, (err2, out2, serr2) => {
+            if (err2) reject(new Error(`yt-dlp failed: ${serr2}`));
+            else resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    if (!fs.existsSync(downloadPath)) {
+      return res.status(500).json({ error: 'Failed to download video stream' });
+    }
+
+    // Trim the video to exact timestamps using FFmpeg and cache it
+    await new Promise((resolve, reject) => {
+      ffmpeg(downloadPath)
+        .setStartTime(0)
+        .setDuration(duration)
+        .output(cachedFilePath)
+        .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-movflags', '+faststart'])
+        .on('end', () => {
+          console.log(`✅ Cached stream generated: ${cachedFilePath}`);
+          resolve();
+        })
+        .on('error', (err) => {
+          console.error('FFmpeg stream error:', err);
+          if (fs.existsSync(downloadPath)) {
+            fs.copyFileSync(downloadPath, cachedFilePath);
+          }
+          resolve();
+        })
+        .run();
+    });
+
+    // Cleanup the un-trimmed download file
+    try {
+      if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
+    } catch (e) {}
+
+    // Serve the cached trimmed file
+    res.sendFile(cachedFilePath);
+
+  } catch (err) {
+    console.error('Stream generation error:', err);
+    try {
+      if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
+      if (fs.existsSync(trimmedPath)) fs.unlinkSync(trimmedPath);
+    } catch (e) {}
+    res.status(500).json({ error: 'Failed to stream clip', message: err.message });
+  }
+});
+
 
 // ===== LOCAL VIDEO TRIM ENDPOINT =====
 // Kept for future use with uploaded videos
