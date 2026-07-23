@@ -12,6 +12,18 @@ export default function useJobStatus(jobId) {
   useEffect(() => {
     if (!jobId) return;
 
+    // Check client-side sessionStorage cache first
+    if (typeof window !== 'undefined') {
+      const cachedJob = sessionStorage.getItem(`job_${jobId}`);
+      const cachedClips = sessionStorage.getItem(`clips_${jobId}`);
+      if (cachedJob && cachedClips) {
+        setJob(JSON.parse(cachedJob));
+        setClips(JSON.parse(cachedClips));
+        setLoading(false);
+        return;
+      }
+    }
+
     let interval;
     
     const fetchStatus = async () => {

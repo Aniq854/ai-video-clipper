@@ -42,7 +42,9 @@ export async function POST(request) {
       totalDuration = parseInt(body.totalDuration) || 600;
     }
 
-    const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const jobId = youtubeId 
+      ? `job_yt_${youtubeId}_${Date.now()}`
+      : `job_local_${Date.now()}`;
 
     // Dynamic Clip Generation (15 Viral Clips across timeline)
     const titles = [
