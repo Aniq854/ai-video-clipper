@@ -16,19 +16,19 @@ const originalError = console.error;
 const originalWarn = console.warn;
 
 console.log = (...args) => {
-  serverLogs.push(`[LOG] ${new Date().toISOString()}: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+  serverLogs.push(`[LOG] ${new Date().toISOString()}: ${args.map(a => a instanceof Error ? a.stack || a.message : (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')}`);
   if (serverLogs.length > 500) serverLogs.shift();
   originalLog.apply(console, args);
 };
 
 console.error = (...args) => {
-  serverLogs.push(`[ERROR] ${new Date().toISOString()}: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+  serverLogs.push(`[ERROR] ${new Date().toISOString()}: ${args.map(a => a instanceof Error ? a.stack || a.message : (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')}`);
   if (serverLogs.length > 500) serverLogs.shift();
   originalError.apply(console, args);
 };
 
 console.warn = (...args) => {
-  serverLogs.push(`[WARN] ${new Date().toISOString()}: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+  serverLogs.push(`[WARN] ${new Date().toISOString()}: ${args.map(a => a instanceof Error ? a.stack || a.message : (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')}`);
   if (serverLogs.length > 500) serverLogs.shift();
   originalWarn.apply(console, args);
 };
