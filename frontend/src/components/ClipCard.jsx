@@ -6,7 +6,10 @@ export default function ClipCard({ clip }) {
   const [videoSrc, setVideoSrc] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipCurrentTime, setClipCurrentTime] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const startTime = clip.startTime || 0;
   const endTime = clip.endTime || (startTime + 30);
@@ -18,9 +21,6 @@ export default function ClipCard({ clip }) {
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
         setVideoSrc(blobUrl);
-      } else {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-        setVideoSrc(`${baseUrl}/api/preview/${clip._id}`);
       }
     }
   }, [clip, isYoutube]);
@@ -80,13 +80,97 @@ export default function ClipCard({ clip }) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const handleDownload = () => {
+  // Real in-browser video trimming using Canvas + MediaRecorder
+  const handleDownloadTrimmed = async () => {
     if (isYoutube) {
-      const downloadUrl = `https://cobalt.tools/?url=https://www.youtube.com/watch?v=${clip.youtubeId}`;
-      window.open(downloadUrl, '_blank');
+      // YouTube clips: open at exact timestamp on YouTube
+      window.open(`https://www.youtube.com/clip/create?v=${clip.youtubeId}&st=${startTime}&et=${endTime}`, '_blank');
       return;
     }
-    if (typeof window !== 'undefined') {
+
+    if (!videoRef.current) return;
+
+    try {
+      setIsRecording(true);
+      setDownloadProgress(0);
+
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1080;
+      canvas.height = video.videoHeight || 1920;
+      const ctx = canvas.getContext('2d');
+
+      // Create a stream from the canvas
+      const canvasStream = canvas.captureStream(30);
+
+      // Add audio track from video if available
+      try {
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaElementSource(video);
+        const destination = audioCtx.createMediaStreamDestination();
+        source.connect(destination);
+        source.connect(audioCtx.destination);
+        destination.stream.getAudioTracks().forEach(track => {
+          canvasStream.addTrack(track);
+        });
+      } catch (audioErr) {
+        console.warn('Audio capture not available:', audioErr.message);
+      }
+
+      const mediaRecorder = new MediaRecorder(canvasStream, {
+        mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : 'video/webm'
+      });
+
+      const chunks = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '')}_${clipDuration}s.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setIsRecording(false);
+        setDownloadProgress(0);
+      };
+
+      // Seek to start and begin recording
+      video.currentTime = startTime;
+      video.muted = false;
+
+      await new Promise(resolve => {
+        video.onseeked = resolve;
+      });
+
+      mediaRecorder.start();
+      video.play();
+
+      // Draw frames to canvas and track progress
+      const drawFrame = () => {
+        if (video.currentTime >= endTime || video.paused) {
+          video.pause();
+          mediaRecorder.stop();
+          return;
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const elapsed = video.currentTime - startTime;
+        setDownloadProgress(Math.min(100, Math.round((elapsed / clipDuration) * 100)));
+        requestAnimationFrame(drawFrame);
+      };
+
+      drawFrame();
+    } catch (err) {
+      console.error('Trim error:', err);
+      setIsRecording(false);
+      // Fallback: download full video
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
         const a = document.createElement('a');
@@ -95,11 +179,8 @@ export default function ClipCard({ clip }) {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        return;
       }
     }
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-    window.open(`${baseUrl}/api/download/${clip._id}`, '_blank');
   };
 
   const progressPercent = Math.min(100, Math.max(0, (clipCurrentTime / clipDuration) * 100));
@@ -117,9 +198,10 @@ export default function ClipCard({ clip }) {
           />
         ) : videoSrc ? (
           <>
-            <video 
+            <video
               ref={videoRef}
               playsInline
+              crossOrigin="anonymous"
               onLoadedMetadata={handleLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onEnded={() => setIsPlaying(false)}
@@ -129,17 +211,17 @@ export default function ClipCard({ clip }) {
             {/* Custom Bounded Controls */}
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <button 
+                <button
                   onClick={togglePlay}
                   style={{ background: '#ffffff', border: 'none', color: '#000000', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 'bold' }}
                 >
                   {isPlaying ? '⏸' : '▶'}
                 </button>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="100" 
-                  value={progressPercent} 
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={progressPercent}
                   onChange={handleSeek}
                   style={{ flex: 1, accentColor: '#ffffff', cursor: 'pointer' }}
                 />
@@ -155,41 +237,53 @@ export default function ClipCard({ clip }) {
           </div>
         )}
       </div>
-      
+
       <div style={{ marginBottom: '1rem' }}>
         <h4 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {clip.title}
         </h4>
-        
+
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
           <span style={{ fontSize: '0.75rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', color: '#ffffff', fontWeight: '600' }}>
-            ⏱️ {formatTime(startTime)} - {formatTime(endTime)} ({clipDuration}s Cut)
+            ✂️ {formatTime(startTime)} → {formatTime(endTime)} ({clipDuration}s Cut)
           </span>
           <span className={`score-badge ${getScoreColorClass(clip.viralityScore)}`}>
             Score: {clip.viralityScore}/10
           </span>
         </div>
-        
+
         <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           {clip.reason}
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <button 
-          onClick={handleDownload}
-          className="btn-primary" 
-          style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
-        >
-          📥 Download {clipDuration}s Cut MP4 Clip
-        </button>
+        {isRecording ? (
+          <div style={{ width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.4rem', color: '#ffffff' }}>
+              <span>✂️ Trimming clip...</span>
+              <span>{downloadProgress}%</span>
+            </div>
+            <div style={{ width: '100%', height: '6px', background: '#27272a', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: `${downloadProgress}%`, height: '100%', background: '#ffffff', transition: 'width 0.2s', boxShadow: '0 0 8px rgba(255,255,255,0.5)' }}></div>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleDownloadTrimmed}
+            className="btn-primary"
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
+          >
+            {isYoutube ? `▶ Watch ${clipDuration}s Clip on YouTube` : `✂️ Trim & Download ${clipDuration}s Clip`}
+          </button>
+        )}
 
         {isYoutube && (
-          <a 
+          <a
             href={`https://www.youtube.com/watch?v=${clip.youtubeId}&t=${startTime}s`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-secondary" 
+            className="btn-secondary"
             style={{ width: '100%', display: 'flex', justifyContent: 'center', textDecoration: 'none', textAlign: 'center' }}
           >
             ▶ Open at {formatTime(startTime)} on YouTube
