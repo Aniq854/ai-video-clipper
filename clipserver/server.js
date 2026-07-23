@@ -165,6 +165,7 @@ app.post('/api/youtube/clip', async (req, res) => {
         .setStartTime(trimStart)
         .setDuration(duration)
         .output(trimmedPath)
+        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Trimmed (stream-copy): ${trimmedPath}`);
@@ -177,6 +178,7 @@ app.post('/api/youtube/clip', async (req, res) => {
             .setStartTime(trimStart)
             .setDuration(duration)
             .output(trimmedPath)
+            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Trimmed (re-encoded): ${trimmedPath}`);
@@ -267,6 +269,7 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
+        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', resolve)
         .on('error', (err) => {
@@ -275,6 +278,7 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
             .setStartTime(0)
             .setDuration(duration)
             .output(cachedFilePath)
+            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', resolve)
             .on('error', reject)
@@ -382,6 +386,7 @@ app.get('/api/youtube/stream', async (req, res) => {
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
+        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Cached stream generated (stream-copy): ${cachedFilePath}`);
@@ -393,6 +398,7 @@ app.get('/api/youtube/stream', async (req, res) => {
             .setStartTime(0)
             .setDuration(duration)
             .output(cachedFilePath)
+            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Cached stream generated (re-encoded): ${cachedFilePath}`);
@@ -461,6 +467,7 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
         .setStartTime(startTime)
         .setDuration(duration)
         .output(outputPath)
+        .overwrite()
         .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Local trim done (stream-copy): ${outputPath}`);
@@ -472,6 +479,7 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
             .setStartTime(startTime)
             .setDuration(duration)
             .output(outputPath)
+            .overwrite()
             .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Local trim done (re-encoded): ${outputPath}`);
