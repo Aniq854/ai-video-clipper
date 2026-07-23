@@ -11,9 +11,10 @@ export default function ClipCard({ clip }) {
   const startTime = clip.startTime || 0;
   const endTime = clip.endTime || (startTime + 30);
   const clipDuration = Math.max(1, endTime - startTime);
+  const isYoutube = Boolean(clip.youtubeId);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (!isYoutube && typeof window !== 'undefined') {
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
         setVideoSrc(blobUrl);
@@ -22,7 +23,7 @@ export default function ClipCard({ clip }) {
         setVideoSrc(`${baseUrl}/api/preview/${clip._id}`);
       }
     }
-  }, [clip]);
+  }, [clip, isYoutube]);
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -80,6 +81,10 @@ export default function ClipCard({ clip }) {
   };
 
   const handleDownload = () => {
+    if (isYoutube) {
+      window.open(`https://www.youtube.com/watch?v=${clip.youtubeId}&t=${startTime}s`, '_blank');
+      return;
+    }
     if (typeof window !== 'undefined') {
       const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
       if (blobUrl) {
@@ -101,7 +106,15 @@ export default function ClipCard({ clip }) {
   return (
     <div className="card clip-card">
       <div style={{ position: 'relative', width: '100%', paddingTop: '177.77%', backgroundColor: '#000', borderRadius: '0.5rem', overflow: 'hidden', marginBottom: '1rem' }}>
-        {videoSrc ? (
+        {isYoutube ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${clip.youtubeId}?start=${startTime}&end=${endTime}&autoplay=0`}
+            title={clip.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+          />
+        ) : videoSrc ? (
           <>
             <video 
               ref={videoRef}
@@ -112,12 +125,12 @@ export default function ClipCard({ clip }) {
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               src={videoSrc}
             />
-            {/* Custom Overlay Player Controls */}
+            {/* Custom Bounded Controls */}
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button 
                   onClick={togglePlay}
-                  style={{ background: 'var(--accent-purple, #8b5cf6)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem' }}
+                  style={{ background: '#ffffff', border: 'none', color: '#000000', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 'bold' }}
                 >
                   {isPlaying ? '⏸' : '▶'}
                 </button>
@@ -127,7 +140,7 @@ export default function ClipCard({ clip }) {
                   max="100" 
                   value={progressPercent} 
                   onChange={handleSeek}
-                  style={{ flex: 1, accentColor: 'var(--accent-purple, #8b5cf6)', cursor: 'pointer' }}
+                  style={{ flex: 1, accentColor: '#ffffff', cursor: 'pointer' }}
                 />
                 <span style={{ color: '#fff', fontSize: '0.75rem', fontFamily: 'monospace' }}>
                   {formatTime(clipCurrentTime)} / {formatTime(clipDuration)}
@@ -149,7 +162,7 @@ export default function ClipCard({ clip }) {
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
           <span style={{ fontSize: '0.75rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)' }}>
-            ⏱️ {formatTime(clipCurrentTime)} / {formatTime(clipDuration)}
+            ⏱️ {formatTime(startTime)} - {formatTime(endTime)} ({clipDuration}s)
           </span>
           <span className={`score-badge ${getScoreColorClass(clip.viralityScore)}`}>
             Score: {clip.viralityScore}/10
@@ -166,7 +179,7 @@ export default function ClipCard({ clip }) {
         className="btn-secondary" 
         style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
       >
-        Download Clip
+        {isYoutube ? 'Open YouTube Clip ↗' : 'Download Clip'}
       </button>
     </div>
   );

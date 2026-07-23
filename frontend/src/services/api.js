@@ -30,8 +30,8 @@ const api = {
       console.warn('Multipart upload failed or payload limit exceeded, using metadata payload fallback:', err.message);
       if (onProgress) onProgress(100);
       const response = await apiClient.post('/api/upload', {
-        videoName: file.name,
-        videoSize: file.size,
+        videoName: file?.name || 'video.mp4',
+        videoSize: file?.size || 0,
         duration,
         aspectRatio
       }, {
@@ -41,6 +41,19 @@ const api = {
       });
       return response.data;
     }
+  },
+
+  processYoutubeUrl: async (youtubeUrl, duration, aspectRatio = '9:16') => {
+    const response = await apiClient.post('/api/upload', {
+      youtubeUrl,
+      duration,
+      aspectRatio
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    return response.data;
   },
 
   getJobStatus: async (jobId) => {

@@ -3,11 +3,20 @@ import { NextResponse } from 'next/server';
 global.jobsStore = global.jobsStore || new Map();
 global.clipsStore = global.clipsStore || new Map();
 
+function extractYoutubeId(url) {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+
 export async function POST(request) {
   try {
     let filename = 'video.mp4';
     let durationOption = 30;
     let aspectRatio = '9:16';
+    let youtubeUrl = '';
+    let youtubeId = null;
 
     const contentType = request.headers.get('content-type') || '';
 
@@ -23,14 +32,16 @@ export async function POST(request) {
       }
     } else {
       const body = await request.json();
-      filename = body.videoName || 'video.mp4';
+      youtubeUrl = body.youtubeUrl || '';
+      youtubeId = extractYoutubeId(youtubeUrl);
+      filename = youtubeId ? `YouTube Video (${youtubeId})` : (body.videoName || 'video.mp4');
       durationOption = parseInt(body.duration) || 30;
       aspectRatio = body.aspectRatio || '9:16';
     }
 
     const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
 
-    // Dynamic Clip Generation (15 Viral Clips across timeline for Movies & Long Videos)
+    // Dynamic Clip Generation (15 Viral Clips across timeline)
     const titles = [
       `🔥 Viral Hook & High Energy Peak`,
       `🎬 Best Emotional Scene Highlight`,
@@ -81,7 +92,9 @@ export async function POST(request) {
         startTime: start,
         endTime: end,
         duration: durationOption,
-        aspectRatio
+        aspectRatio,
+        youtubeId,
+        thumbnailUrl: youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null
       };
     });
 
@@ -92,6 +105,7 @@ export async function POST(request) {
       originalFilename: filename,
       durationOption,
       aspectRatio,
+      youtubeId,
       totalClips: generatedClips.length,
       createdAt: new Date()
     });
