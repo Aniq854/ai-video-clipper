@@ -7,12 +7,13 @@ const apiClient = axios.create({
 });
 
 const api = {
-  uploadVideo: async (file, duration, aspectRatio = '9:16', onProgress) => {
+  uploadVideo: async (file, duration, aspectRatio = '9:16', onProgress, totalDuration = 600) => {
     try {
       const formData = new FormData();
       formData.append('video', file);
       formData.append('duration', duration);
       formData.append('aspectRatio', aspectRatio);
+      formData.append('totalDuration', totalDuration);
 
       const response = await apiClient.post('/api/upload', formData, {
         headers: {
@@ -33,7 +34,8 @@ const api = {
         videoName: file?.name || 'video.mp4',
         videoSize: file?.size || 0,
         duration,
-        aspectRatio
+        aspectRatio,
+        totalDuration
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -43,11 +45,12 @@ const api = {
     }
   },
 
-  processYoutubeUrl: async (youtubeUrl, duration, aspectRatio = '9:16') => {
+  processYoutubeUrl: async (youtubeUrl, duration, aspectRatio = '9:16', totalDuration = 600) => {
     const response = await apiClient.post('/api/upload', {
       youtubeUrl,
       duration,
-      aspectRatio
+      aspectRatio,
+      totalDuration
     }, {
       headers: {
         'Content-Type': 'application/json'

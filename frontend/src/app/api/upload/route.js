@@ -12,6 +12,7 @@ function extractYoutubeId(url) {
 
 export async function POST(request) {
   try {
+    let totalDuration = 600; // default to 10 mins (600s)
     let filename = 'video.mp4';
     let durationOption = 30;
     let aspectRatio = '9:16';
@@ -27,6 +28,7 @@ export async function POST(request) {
         durationOption = parseInt(formData.get('duration')) || 30;
         aspectRatio = formData.get('aspectRatio') || '9:16';
         filename = video?.name || 'video.mp4';
+        totalDuration = parseInt(formData.get('totalDuration')) || 600;
       } catch (err) {
         console.warn('FormData parsing error:', err.message);
       }
@@ -37,6 +39,7 @@ export async function POST(request) {
       filename = youtubeId ? `YouTube Video (${youtubeId})` : (body.videoName || 'video.mp4');
       durationOption = parseInt(body.duration) || 30;
       aspectRatio = body.aspectRatio || '9:16';
+      totalDuration = parseInt(body.totalDuration) || 600;
     }
 
     const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -80,18 +83,24 @@ export async function POST(request) {
 
     const scores = [9.9, 9.8, 9.7, 9.6, 9.5, 9.4, 9.3, 9.2, 9.1, 9.0, 8.9, 8.8, 8.7, 8.6, 8.5];
 
-    const generatedClips = Array.from({ length: 15 }).map((_, index) => {
-      const start = index * (durationOption + 20) + 10;
-      const end = start + durationOption;
+    const spacing = durationOption;
+    const numClips = Math.max(3, Math.floor(totalDuration / spacing));
+
+    const generatedClips = Array.from({ length: numClips }).map((_, index) => {
+      const start = index * spacing;
+      const end = Math.min(totalDuration, start + durationOption);
+      const partNum = Math.floor(index / titles.length) + 1;
+      const partText = partNum > 1 ? ` (Part ${partNum})` : '';
+
       return {
         _id: `clip_${jobId}_${index + 1}`,
         jobId,
-        title: titles[index],
-        reason: reasons[index],
-        viralityScore: scores[index],
+        title: titles[index % titles.length] + partText,
+        reason: reasons[index % reasons.length].replace(filename, `${filename} - Part ${index + 1}`),
+        viralityScore: Math.max(5.0, parseFloat((scores[index % scores.length] - (partNum - 1) * 0.2).toFixed(1))),
         startTime: start,
         endTime: end,
-        duration: durationOption,
+        duration: end - start,
         aspectRatio,
         youtubeId,
         thumbnailUrl: youtubeId ? `https://img.youtube.com/vi/${youtubeId}/${(index % 3) + 1}.jpg` : null

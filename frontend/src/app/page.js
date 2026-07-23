@@ -15,7 +15,20 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [totalVideoDuration, setTotalVideoDuration] = useState(600); // Default to 10 mins (600s)
   const router = useRouter();
+
+  const handleFileSelect = (selectedFile) => {
+    setFile(selectedFile);
+    if (selectedFile) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        setTotalVideoDuration(Math.round(video.duration));
+      };
+      video.src = URL.createObjectURL(selectedFile);
+    }
+  };
 
   const handleGenerate = async () => {
     if ((!file && !youtubeUrl) || !duration) return;
@@ -27,14 +40,14 @@ export default function Home() {
       let jobId;
       if (youtubeUrl) {
         setProgress(50);
-        const res = await api.processYoutubeUrl(youtubeUrl, duration, aspectRatio);
+        const res = await api.processYoutubeUrl(youtubeUrl, duration, aspectRatio, totalVideoDuration);
         jobId = res.jobId;
         setProgress(100);
       } else {
         const blobUrl = URL.createObjectURL(file);
         const res = await api.uploadVideo(file, duration, aspectRatio, (p) => {
           setProgress(p);
-        });
+        }, totalVideoDuration);
         jobId = res.jobId;
 
         if (typeof window !== 'undefined') {
@@ -63,7 +76,7 @@ export default function Home() {
         <div style={{ marginBottom: '2rem' }}>
           <h3 style={{ marginBottom: '1rem' }}>1. Select Video Source</h3>
           <UploadBox 
-            onFileSelect={setFile} 
+            onFileSelect={handleFileSelect} 
             selectedFile={file} 
             onUrlSelect={setYoutubeUrl}
             youtubeUrl={youtubeUrl}

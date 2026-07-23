@@ -223,26 +223,53 @@ export default function ClipCard({ clip }) {
 
       const video = videoRef.current;
       
-      // Ensure video is unmuted and has volume during recording to capture audio
+      // Keep track of original state
       const originalMuted = video.muted;
       const originalVolume = video.volume;
+      const originalTime = video.currentTime;
+      const originalPaused = video.paused;
+
+      // Unmute programmatically so audio track is outputted by the element
       video.muted = false;
       video.volume = 1.0;
 
-      let streamToRecord = null;
+      // Silently route audio using Web Audio API
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      const source = audioCtx.createMediaElementSource(video);
+      const destination = audioCtx.createMediaStreamDestination();
+      
+      // Connect to the stream recorder, but NOT to audioCtx.destination (keeps speakers silent!)
+      source.connect(destination);
+
+      let videoStream = null;
       if (video.captureStream) {
-        streamToRecord = video.captureStream();
+        videoStream = video.captureStream();
       } else if (video.mozCaptureStream) {
-        streamToRecord = video.mozCaptureStream();
+        videoStream = video.mozCaptureStream();
       } else if (video.webkitCaptureStream) {
-        streamToRecord = video.webkitCaptureStream();
+        videoStream = video.webkitCaptureStream();
       }
 
-      if (!streamToRecord) {
+      if (!videoStream) {
         throw new Error('captureStream is not supported in this browser.');
       }
 
-      const mediaRecorder = new MediaRecorder(streamToRecord, {
+      // Combine video track and audio destination track
+      const videoTrack = videoStream.getVideoTracks()[0];
+      const audioTrack = destination.stream.getAudioTracks()[0];
+
+      if (!videoTrack) {
+        throw new Error('No video track found.');
+      }
+
+      const combinedStream = new MediaStream();
+      combinedStream.addTrack(videoTrack);
+      if (audioTrack) {
+        combinedStream.addTrack(audioTrack);
+      }
+
+      const mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
           ? 'video/webm;codecs=vp9'
           : 'video/webm'
@@ -254,9 +281,20 @@ export default function ClipCard({ clip }) {
       };
 
       mediaRecorder.onstop = () => {
-        // Restore original audio settings
+        // Restore original audio & playback settings
         video.muted = originalMuted;
         video.volume = originalVolume;
+        video.currentTime = playStart;
+        if (originalPaused) {
+          video.pause();
+        } else {
+          video.play();
+        }
+
+        // Clean up Web Audio context
+        try {
+          audioCtx.close();
+        } catch (e) {}
 
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
@@ -324,6 +362,18 @@ export default function ClipCard({ clip }) {
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20, gap: '1rem', color: '#fff', padding: '1rem', textAlign: 'center' }}>
             <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTop: '4px solid #ffffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
             <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{prepareMessage}</span>
+          </div>
+        )}
+
+        {/* Downloading Overlay */}
+        {downloading && (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(9,9,11,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 25, gap: '1rem', color: '#ffffff', padding: '1.5rem', textAlign: 'center' }}>
+            <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTop: '4px solid #ffffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+            <span style={{ fontSize: '0.95rem', fontWeight: '600' }}>Downloading clip...</span>
+            <div style={{ width: '100%', height: '6px', background: '#27272a', borderRadius: '3px', overflow: 'hidden', marginTop: '0.5rem' }}>
+              <div style={{ width: `${downloadProgress}%`, height: '100%', background: '#ffffff', transition: 'width 0.3s' }}></div>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>{downloadProgress}% completed</span>
           </div>
         )}
 
