@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: clipai-server
+    runtime: node
+    rootDir: clipserver
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+    buildFilter:
+      paths:
+        - clipserver/**
