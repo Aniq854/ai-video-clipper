@@ -238,7 +238,7 @@ export default function ClipCard({ clip }) {
               onEnded={() => setIsPlaying(false)}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               src={videoSrc}
-              poster={isYoutube ? `https://img.youtube.com/vi/${clip.youtubeId}/hqdefault.jpg` : null}
+              poster={clip.thumbnailUrl || null}
             />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

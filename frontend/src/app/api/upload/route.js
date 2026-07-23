@@ -94,7 +94,7 @@ export async function POST(request) {
         duration: durationOption,
         aspectRatio,
         youtubeId,
-        thumbnailUrl: youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null
+        thumbnailUrl: youtubeId ? `https://img.youtube.com/vi/${youtubeId}/${(index % 3) + 1}.jpg` : null
       };
     });
 

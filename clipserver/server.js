@@ -8,6 +8,37 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
 
+// Log interceptor for debugging on Render
+const serverLogs = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+console.log = (...args) => {
+  serverLogs.push(`[LOG] ${new Date().toISOString()}: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+  if (serverLogs.length > 500) serverLogs.shift();
+  originalLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  serverLogs.push(`[ERROR] ${new Date().toISOString()}: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+  if (serverLogs.length > 500) serverLogs.shift();
+  originalError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  serverLogs.push(`[WARN] ${new Date().toISOString()}: ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+  if (serverLogs.length > 500) serverLogs.shift();
+  originalWarn.apply(console, args);
+};
+
+const ffmpegDir = path.dirname(ffmpegInstaller.path);
+const ffprobeDir = path.dirname(ffprobeInstaller.path);
+const execEnv = {
+  ...process.env,
+  PATH: `${ffmpegDir}:${ffprobeDir}:${process.env.PATH}`
+};
+
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
@@ -18,6 +49,11 @@ app.use(express.json());
 const TEMP_DIR = path.join(__dirname, 'temp');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+app.get('/api/logs', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(serverLogs.join('\n'));
+});
+
 // Check if local yt-dlp is available, else try global or fallback
 const localYtdlp = path.join(__dirname, 'bin', 'yt-dlp');
 let ytdlpPath = 'yt-dlp';
@@ -27,11 +63,11 @@ if (fs.existsSync(localYtdlp)) {
   console.log('✅ Using local yt-dlp binary:', ytdlpPath);
 } else {
   try {
-    execSync('yt-dlp --version', { stdio: 'pipe' });
+    execSync('yt-dlp --version', { stdio: 'pipe', env: execEnv });
     console.log('✅ System yt-dlp found');
   } catch {
     try {
-      execSync('python3 -m pip install yt-dlp', { stdio: 'pipe' });
+      execSync('python3 -m pip install yt-dlp', { stdio: 'pipe', env: execEnv });
       console.log('✅ yt-dlp installed via pip');
     } catch {
       console.warn('⚠️ yt-dlp not available on system, using fallback');
@@ -74,12 +110,12 @@ app.post('/api/youtube/clip', async (req, res) => {
     const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
-      exec(ytCmd, { timeout: 120000 }, (error, stdout, stderr) => {
+      exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
         if (error) {
           console.error('yt-dlp error:', stderr);
           // Fallback: try downloading without sections
           const fallbackCmd = `"${ytdlpPath}" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
-          exec(fallbackCmd, { timeout: 180000 }, (err2, out2, serr2) => {
+          exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
             if (err2) {
               reject(new Error(`yt-dlp failed: ${serr2}`));
             } else {
@@ -184,12 +220,12 @@ app.get('/api/youtube/stream', async (req, res) => {
     const ytCmd = `"${ytdlpPath}" -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --merge-output-format mp4 --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
-      exec(ytCmd, { timeout: 120000 }, (error, stdout, stderr) => {
+      exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
         if (error) {
           console.error('yt-dlp stream error:', stderr);
           // Fallback: try downloading without sections
           const fallbackCmd = `"${ytdlpPath}" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
-          exec(fallbackCmd, { timeout: 180000 }, (err2, out2, serr2) => {
+          exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
             if (err2) reject(new Error(`yt-dlp failed: ${serr2}`));
             else resolve();
           });
