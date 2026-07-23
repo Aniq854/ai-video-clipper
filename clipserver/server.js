@@ -162,11 +162,10 @@ app.post('/api/youtube/clip', async (req, res) => {
     // Try stream-copy first (fast), fallback to re-encode (accurate)
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .overwrite()
         .setStartTime(trimStart)
         .setDuration(duration)
         .output(trimmedPath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Trimmed (stream-copy): ${trimmedPath}`);
           resolve();
@@ -175,11 +174,10 @@ app.post('/api/youtube/clip', async (req, res) => {
           console.warn('FFmpeg stream-copy failed, trying re-encode:', err.message);
           // Re-encode fallback for accurate cuts
           ffmpeg(downloadPath)
-            .overwrite()
             .setStartTime(trimStart)
             .setDuration(duration)
             .output(trimmedPath)
-            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Trimmed (re-encoded): ${trimmedPath}`);
               resolve();
@@ -266,20 +264,18 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
     // Try stream-copy first, fallback to re-encode for accurate cuts
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .overwrite()
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', resolve)
         .on('error', (err) => {
           console.warn('[BG] Stream-copy failed, re-encoding:', err.message);
           ffmpeg(downloadPath)
-            .overwrite()
             .setStartTime(0)
             .setDuration(duration)
             .output(cachedFilePath)
-            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', resolve)
             .on('error', reject)
             .run();
@@ -383,11 +379,10 @@ app.get('/api/youtube/stream', async (req, res) => {
     // Try stream-copy first, fallback to re-encode for accurate cuts
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .overwrite()
         .setStartTime(0)
         .setDuration(duration)
         .output(cachedFilePath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Cached stream generated (stream-copy): ${cachedFilePath}`);
           resolve();
@@ -395,11 +390,10 @@ app.get('/api/youtube/stream', async (req, res) => {
         .on('error', (err) => {
           console.warn('FFmpeg stream-copy error, re-encoding:', err.message);
           ffmpeg(downloadPath)
-            .overwrite()
             .setStartTime(0)
             .setDuration(duration)
             .output(cachedFilePath)
-            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Cached stream generated (re-encoded): ${cachedFilePath}`);
               resolve();
@@ -464,11 +458,10 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
     // Try stream-copy first (fast), fallback to re-encode (accurate)
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
-        .overwrite()
         .setStartTime(startTime)
         .setDuration(duration)
         .output(outputPath)
-        .outputOptions(['-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
         .on('end', () => {
           console.log(`✅ Local trim done (stream-copy): ${outputPath}`);
           resolve();
@@ -476,11 +469,10 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
         .on('error', (err) => {
           console.warn('Stream-copy failed, re-encoding:', err.message);
           ffmpeg(inputPath)
-            .overwrite()
             .setStartTime(startTime)
             .setDuration(duration)
             .output(outputPath)
-            .outputOptions(['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
             .on('end', () => {
               console.log(`✅ Local trim done (re-encoded): ${outputPath}`);
               resolve();
