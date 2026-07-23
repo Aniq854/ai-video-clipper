@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-const CLIP_SERVER = process.env.NEXT_PUBLIC_CLIP_SERVER || '';
+const CLIP_SERVER = process.env.NEXT_PUBLIC_CLIP_SERVER || 'https://clipai-server.onrender.com';
 
 export default function ClipCard({ clip }) {
   const [videoSrc, setVideoSrc] = useState('');
