@@ -82,7 +82,8 @@ export default function ClipCard({ clip }) {
 
   const handleDownload = () => {
     if (isYoutube) {
-      window.open(`https://ssyoutube.com/watch?v=${clip.youtubeId}`, '_blank');
+      const downloadUrl = `https://cobalt.tools/?url=https://www.youtube.com/watch?v=${clip.youtubeId}`;
+      window.open(downloadUrl, '_blank');
       return;
     }
     if (typeof window !== 'undefined') {
@@ -175,35 +176,24 @@ export default function ClipCard({ clip }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {isYoutube ? (
-          <>
-            <a 
-              href={`https://ssyoutube.com/watch?v=${clip.youtubeId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary" 
-              style={{ width: '100%', display: 'flex', justifyContent: 'center', textDecoration: 'none', textAlign: 'center' }}
-            >
-              📥 Download {clipDuration}s MP4 Clip
-            </a>
-            <a 
-              href={`https://www.youtube.com/watch?v=${clip.youtubeId}&t=${startTime}s`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary" 
-              style={{ width: '100%', display: 'flex', justifyContent: 'center', textDecoration: 'none', textAlign: 'center' }}
-            >
-              ▶ Open at {formatTime(startTime)} on YouTube
-            </a>
-          </>
-        ) : (
-          <button 
-            onClick={handleDownload}
-            className="btn-primary" 
-            style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
+        <button 
+          onClick={handleDownload}
+          className="btn-primary" 
+          style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          📥 Download {clipDuration}s Cut MP4 Clip
+        </button>
+
+        {isYoutube && (
+          <a 
+            href={`https://www.youtube.com/watch?v=${clip.youtubeId}&t=${startTime}s`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary" 
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', textDecoration: 'none', textAlign: 'center' }}
           >
-            📥 Download {clipDuration}s Cut MP4 Clip
-          </button>
+            ▶ Open at {formatTime(startTime)} on YouTube
+          </a>
         )}
       </div>
     </div>
