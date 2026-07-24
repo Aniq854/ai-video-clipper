@@ -46,7 +46,7 @@ const api = {
   },
 
   processYoutubeUrl: async (youtubeUrl, duration, aspectRatio = '9:16', totalDuration = 600) => {
-    const response = await apiClient.post('/api/upload', {
+    const response = await axios.post('/api/upload', {
       youtubeUrl,
       duration,
       aspectRatio,
