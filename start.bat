@@ -11,6 +11,9 @@ start "ClipAI Backend" cmd /k "cd /d "%~dp0backend" && npm start"
 :: Start Worker Process
 start "ClipAI Worker" cmd /k "cd /d "%~dp0backend" && npm run worker"
 
+:: Start Clip Server
+start "ClipAI Clip Server" cmd /k "cd /d "%~dp0clipserver" && npm start"
+
 :: Start Frontend UI
 start "ClipAI Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev"
 

@@ -3,7 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const CLIP_SERVER = process.env.NEXT_PUBLIC_CLIP_SERVER || 'https://clipai-server.onrender.com';
+let CLIP_SERVER = 'https://clipai-server.onrender.com';
+if (typeof window !== 'undefined') {
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    CLIP_SERVER = 'http://localhost:4000';
+  } else if (process.env.NEXT_PUBLIC_CLIP_SERVER) {
+    CLIP_SERVER = process.env.NEXT_PUBLIC_CLIP_SERVER;
+  }
+}
 
 export default function ClipCard({ clip }) {
   const [videoSrc, setVideoSrc] = useState('');
@@ -472,7 +479,7 @@ export default function ClipCard({ clip }) {
             className="btn-primary"
             style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
           >
-            ✂️ Trim & Download {clipDuration}s MP4 Clip
+            Download {clipDuration}s MP4 Clip
           </button>
         )}
       </div>

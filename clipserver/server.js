@@ -126,7 +126,7 @@ app.post('/api/youtube/clip', async (req, res) => {
     // Step 1: Download the YouTube video using yt-dlp
     // Only download the portion we need using --download-sections
     let usedSections = true;
-    const ytCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=ios,web" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=tv" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
@@ -134,7 +134,7 @@ app.post('/api/youtube/clip', async (req, res) => {
           console.error('yt-dlp error:', stderr);
           usedSections = false;
           // Fallback: try downloading without sections (full video)
-          const fallbackCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=ios,web" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
+          const fallbackCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=tv" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
           exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
             if (err2) {
               reject(new Error(`yt-dlp failed: ${serr2}`));
@@ -239,13 +239,13 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
   try {
     console.log(`[BG] Starting download: ${youtubeId} (${start}s - ${end}s)`);
     const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
-    const ytCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=ios,web" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=tv" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
         if (error) {
           console.warn('[BG] yt-dlp sectioned failed, trying fallback...');
-          const fallbackCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=ios,web" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
+          const fallbackCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=tv" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
           exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
             if (err2) reject(new Error(`yt-dlp failed: ${serr2}`));
             else resolve();
@@ -353,14 +353,14 @@ app.get('/api/youtube/stream', async (req, res) => {
     console.log(`🎬 Downloading YouTube Stream: ${youtubeId}`);
     const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
 
-    const ytCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=ios,web" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
+    const ytCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=tv" -f "best[ext=mp4]/best" --download-sections "*${start}-${end}" -o "${downloadPath}" "${youtubeUrl}"`;
 
     await new Promise((resolve, reject) => {
       exec(ytCmd, { timeout: 120000, env: execEnv }, (error, stdout, stderr) => {
         if (error) {
           console.error('yt-dlp stream error:', stderr);
           // Fallback: try downloading without sections
-          const fallbackCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=ios,web" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
+          const fallbackCmd = `"${ytdlpPath}" --extractor-args "youtube:player_client=tv" -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
           exec(fallbackCmd, { timeout: 180000, env: execEnv }, (err2, out2, serr2) => {
             if (err2) reject(new Error(`yt-dlp failed: ${serr2}`));
             else resolve();
