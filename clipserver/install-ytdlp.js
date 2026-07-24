@@ -2,13 +2,16 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const os = require('os');
 
 const binDir = path.join(__dirname, 'bin');
 if (!fs.existsSync(binDir)) {
   fs.mkdirSync(binDir, { recursive: true });
 }
 
-const ytdlpPath = path.join(binDir, 'yt-dlp');
+const isWin = os.platform() === 'win32';
+const ytdlpFilename = isWin ? 'yt-dlp.exe' : 'yt-dlp';
+const ytdlpPath = path.join(binDir, ytdlpFilename);
 
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
@@ -47,16 +50,22 @@ function downloadFile(url, destPath) {
 
 async function main() {
   try {
-    console.log('Downloading standalone yt-dlp binary for Linux...');
-    await downloadFile('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', ytdlpPath);
+    const downloadUrl = isWin
+      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+
+    console.log(`Downloading standalone yt-dlp binary for ${isWin ? 'Windows' : 'Linux'}...`);
+    await downloadFile(downloadUrl, ytdlpPath);
     
-    // Set executable permission
-    fs.chmodSync(ytdlpPath, '755');
+    // Set executable permission (only needed/supported on non-Windows)
+    if (!isWin) {
+      fs.chmodSync(ytdlpPath, '755');
+    }
     console.log('✅ Standalone yt-dlp installed and made executable.');
     process.exit(0);
   } catch (err) {
     console.error('❌ Installation failed:', err.message);
-    process.exit(1); // Exit with error so Render knows the build failed!
+    process.exit(1);
   }
 }
 
