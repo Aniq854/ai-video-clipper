@@ -262,7 +262,7 @@ export default function ClipCard({ clip }) {
         throw new Error('Video source not found. Please re-upload.');
       }
 
-      // Try Server FFmpeg Trim first (Lossless, perfect frame rate, 0 stuttering)
+      // Try Server FFmpeg Trim first with 6s timeout to prevent hanging on slow uploads
       if (CLIP_SERVER) {
         try {
           setDownloadProgress(20);
@@ -273,10 +273,15 @@ export default function ClipCard({ clip }) {
           const formData = new FormData();
           formData.append('video', rawBlob, 'local_video.mp4');
 
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+
           const serverRes = await fetch(`${CLIP_SERVER}/api/trim?start=${startTime}&end=${endTime}`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
           });
+          clearTimeout(timeoutId);
 
           if (serverRes.ok) {
             setDownloadProgress(80);
@@ -300,7 +305,7 @@ export default function ClipCard({ clip }) {
         }
       }
 
-      // Fallback: Smooth 60 FPS Client-side Canvas Recorder (DOM-attached to bypass Chrome background 10fps video throttling)
+      // Fallback: Smooth Client-side Recorder
       const offlineVideo = document.createElement('video');
       offlineVideo.muted = true;
       offlineVideo.preload = 'auto';
@@ -313,21 +318,38 @@ export default function ClipCard({ clip }) {
       setDownloadProgress(30);
 
       await new Promise((resolve, reject) => {
-        offlineVideo.onloadedmetadata = resolve;
+        if (offlineVideo.readyState >= 1) return resolve();
+        let loaded = false;
+        const timer = setTimeout(() => {
+          if (!loaded) { loaded = true; resolve(); }
+        }, 5000);
+        offlineVideo.onloadedmetadata = () => {
+          if (!loaded) { loaded = true; clearTimeout(timer); resolve(); }
+        };
         offlineVideo.onerror = () => reject(new Error('Failed to load video metadata'));
-        setTimeout(() => reject(new Error('Timeout loading video metadata')), 10000);
       });
 
       setDownloadProgress(40);
 
-      // Seek to start position
-      offlineVideo.currentTime = startTime;
+      // Seek to start position with robust fallback
       await new Promise((resolve) => {
+        if (Math.abs(offlineVideo.currentTime - startTime) < 0.1) {
+          return resolve();
+        }
+        let seekDone = false;
+        const timer = setTimeout(() => {
+          if (!seekDone) { seekDone = true; resolve(); }
+        }, 2000);
         const onSeeked = () => {
-          offlineVideo.removeEventListener('seeked', onSeeked);
-          resolve();
+          if (!seekDone) {
+            seekDone = true;
+            clearTimeout(timer);
+            offlineVideo.removeEventListener('seeked', onSeeked);
+            resolve();
+          }
         };
         offlineVideo.addEventListener('seeked', onSeeked);
+        offlineVideo.currentTime = startTime;
       });
 
       setDownloadProgress(50);
