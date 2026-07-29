@@ -160,32 +160,44 @@ app.post('/api/youtube/clip', async (req, res) => {
     // If fallback (full video), we need to seek to the actual start time
     const trimStart = usedSections ? 0 : start;
 
-    // Try stream-copy first (fast), fallback to re-encode (accurate)
+    // Fast & accurate re-encode with YUV420P, 30FPS constant rate, 2s GOP keyframes
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
         .setStartTime(trimStart)
         .setDuration(duration)
         .output(trimmedPath)
-        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions([
+          '-y',
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-crf', '22',
+          '-pix_fmt', 'yuv420p',
+          '-r', '30',
+          '-g', '60',
+          '-c:a', 'aac',
+          '-ar', '44100',
+          '-ac', '2',
+          '-b:a', '128k',
+          '-avoid_negative_ts', 'make_zero',
+          '-movflags', '+faststart'
+        ])
         .on('end', () => {
-          console.log(`✅ Trimmed (stream-copy): ${trimmedPath}`);
+          console.log(`✅ Trimmed (smooth H.264): ${trimmedPath}`);
           resolve();
         })
         .on('error', (err) => {
-          console.warn('FFmpeg stream-copy failed, trying re-encode:', err.message);
-          // Re-encode fallback for accurate cuts
+          console.warn('FFmpeg ultrafast encode failed, trying stream-copy:', err.message);
           ffmpeg(downloadPath)
             .setStartTime(trimStart)
             .setDuration(duration)
             .output(trimmedPath)
-            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
             .on('end', () => {
-              console.log(`✅ Trimmed (re-encoded): ${trimmedPath}`);
+              console.log(`✅ Trimmed (stream-copy fallback): ${trimmedPath}`);
               resolve();
             })
             .on('error', (err2) => {
-              console.error('FFmpeg re-encode also failed:', err2.message);
-              // Last resort: use the downloaded file as-is
+              console.error('FFmpeg fallback also failed:', err2.message);
               if (fs.existsSync(downloadPath)) {
                 fs.copyFileSync(downloadPath, trimmedPath);
               }
@@ -435,7 +447,7 @@ app.get('/api/youtube/stream', async (req, res) => {
 const multer = require('multer');
 const localUpload = multer({
   dest: TEMP_DIR,
-  limits: { fileSize: 500 * 1024 * 1024 } // 500MB
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB limit
 });
 
 app.post('/api/trim', localUpload.single('video'), async (req, res) => {
@@ -456,30 +468,44 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
 
     console.log(`✂️ Local trim: ${startTime}s -> ${endTime}s (${duration}s)`);
 
-    // Try stream-copy first (fast), fallback to re-encode (accurate)
+    // Fast & accurate re-encode with YUV420P, 30FPS constant rate, 2s GOP keyframes for 100% smooth playback
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .setStartTime(startTime)
         .setDuration(duration)
         .output(outputPath)
-        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions([
+          '-y',
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-crf', '22',
+          '-pix_fmt', 'yuv420p',
+          '-r', '30',
+          '-g', '60',
+          '-c:a', 'aac',
+          '-ar', '44100',
+          '-ac', '2',
+          '-b:a', '128k',
+          '-avoid_negative_ts', 'make_zero',
+          '-movflags', '+faststart'
+        ])
         .on('end', () => {
-          console.log(`✅ Local trim done (stream-copy): ${outputPath}`);
+          console.log(`✅ Local trim done (smooth H.264): ${outputPath}`);
           resolve();
         })
         .on('error', (err, stdout, stderr) => {
-          console.warn(`Stream-copy failed. Error: ${err.message}. Stderr: ${stderr}`);
+          console.warn(`Ultrafast encode failed, trying stream-copy: ${err.message}`);
           ffmpeg(inputPath)
             .setStartTime(startTime)
             .setDuration(duration)
             .output(outputPath)
-            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
             .on('end', () => {
-              console.log(`✅ Local trim done (re-encoded): ${outputPath}`);
+              console.log(`✅ Local trim done (stream-copy fallback): ${outputPath}`);
               resolve();
             })
             .on('error', (err2, stdout2, stderr2) => {
-              console.error(`Re-encode failed. Error: ${err2.message}. Stderr: ${stderr2}`);
+              console.error(`Local trim fallback failed: ${err2.message}`);
               reject(err2);
             })
             .run();

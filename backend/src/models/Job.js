@@ -27,6 +27,7 @@ const JobSchema = new mongoose.Schema({
     type: String,
     enum: [
       'pending',
+      'downloading',
       'processing',
       'extracting_audio',
       'transcribing',

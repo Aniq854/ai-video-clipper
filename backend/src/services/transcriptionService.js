@@ -36,10 +36,10 @@ const transcribeWithGemini = async (audioPath) => {
   });
 
   const stat = fs.statSync(audioPath);
-  // If audio file is large (>15MB), read first 10MB chunk for fast API transfer
-  const maxBytes = 10 * 1024 * 1024;
+  const maxBytes = 20 * 1024 * 1024; // 20MB - Gemini API inline data limit
   let audioBuffer;
   if (stat.size > maxBytes) {
+    console.warn(`⚠️ Audio file ${(stat.size / 1024 / 1024).toFixed(1)}MB exceeds 20MB limit. Transcribing first 20MB only — some content at the end may be missed.`);
     const fd = fs.openSync(audioPath, 'r');
     audioBuffer = Buffer.alloc(maxBytes);
     fs.readSync(fd, audioBuffer, 0, maxBytes, 0);
@@ -75,7 +75,7 @@ const generateFallbackTranscript = (audioPath) => {
   } catch (e) {}
 
   const segments = [];
-  const chunkSize = 15;
+  const chunkSize = 5; // 5-second segments for granular AI analysis
   let cur = 0;
   let id = 0;
 

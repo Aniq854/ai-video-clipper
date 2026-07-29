@@ -17,6 +17,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/youtube', require('./routes/youtube'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/download', require('./routes/download'));
 app.use('/api/preview', require('./routes/preview'));

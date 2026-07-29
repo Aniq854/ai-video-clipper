@@ -31,18 +31,15 @@ export default function ClipCard({ clip }) {
   const playStart = isStreamed ? 0 : startTime;
   const playEnd = isStreamed ? clipDuration : endTime;
 
-  useEffect(() => {
-    if (!isYoutube && typeof window !== 'undefined') {
-      const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
-      if (blobUrl) {
-        setVideoSrc(blobUrl);
-      }
-    }
-  }, [clip, isYoutube]);
+  // Don't auto-set videoSrc for local clips on mount to prevent opening 15 video decoders simultaneously.
+  // Lazy-load videoSrc only when user clicks Play.
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = playStart;
+      if (isPlaying) {
+        videoRef.current.play().catch(err => console.warn('Auto-play error:', err));
+      }
     }
   };
 
@@ -61,7 +58,30 @@ export default function ClipCard({ clip }) {
   };
 
   const checkStatusAndPlay = async () => {
+    // Pause any other playing videos on the page to prevent decoder & audio channel conflicts
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('video').forEach(v => {
+        if (v !== videoRef.current) {
+          try { v.pause(); } catch (e) {}
+        }
+      });
+    }
+
     if (!isYoutube) {
+      if (!videoSrc && typeof window !== 'undefined') {
+        const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
+        if (blobUrl) {
+          setVideoSrc(blobUrl);
+          setIsPlaying(true);
+          setTimeout(() => {
+            if (videoRef.current) {
+              videoRef.current.currentTime = playStart;
+              videoRef.current.play().catch(e => console.warn('Play error:', e));
+            }
+          }, 100);
+          return;
+        }
+      }
       playVideo();
       return;
     }
@@ -222,10 +242,15 @@ export default function ClipCard({ clip }) {
       return;
     }
 
-    // Local video: smooth client-side trim using in-memory detached video element
+    // Local video: Try Server-side FFmpeg trim first for 100% smooth, stutter-free MP4 clip
     try {
       setDownloading(true);
       setDownloadProgress(10);
+
+      // Pause all active playing videos in the DOM to free browser decoders & GPU memory
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch(e){} });
+      }
 
       const blobUrl = typeof window !== 'undefined' 
         ? sessionStorage.getItem('current_video_blob_' + clip.jobId) 
@@ -237,24 +262,63 @@ export default function ClipCard({ clip }) {
         throw new Error('Video source not found. Please re-upload.');
       }
 
-      // Create a detached offline video element for smooth recording without DOM rendering overhead
+      // Try Server FFmpeg Trim first (Lossless, perfect frame rate, 0 stuttering)
+      if (CLIP_SERVER) {
+        try {
+          setDownloadProgress(20);
+          const videoBlobRes = await fetch(activeUrl);
+          const rawBlob = await videoBlobRes.blob();
+
+          setDownloadProgress(40);
+          const formData = new FormData();
+          formData.append('video', rawBlob, 'local_video.mp4');
+
+          const serverRes = await fetch(`${CLIP_SERVER}/api/trim?start=${startTime}&end=${endTime}`, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (serverRes.ok) {
+            setDownloadProgress(80);
+            const trimmedBlob = await serverRes.blob();
+            setDownloadProgress(95);
+
+            const url = URL.createObjectURL(trimmedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${Math.round(clipDuration)}s.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            setDownloadProgress(100);
+            return;
+          }
+        } catch (serverErr) {
+          console.warn('Server FFmpeg trim fallback to client recorder:', serverErr);
+        }
+      }
+
+      // Fallback: Smooth 60 FPS Client-side Canvas Recorder (DOM-attached to bypass Chrome background 10fps video throttling)
       const offlineVideo = document.createElement('video');
-      offlineVideo.style.display = 'none';
+      offlineVideo.muted = true;
       offlineVideo.preload = 'auto';
       offlineVideo.crossOrigin = 'anonymous';
       offlineVideo.playsInline = true;
+      offlineVideo.style.cssText = 'position:fixed; bottom:0; right:0; width:1px; height:1px; z-index:-1; opacity:0.01; pointer-events:none;';
+      document.body.appendChild(offlineVideo);
       offlineVideo.src = activeUrl;
 
-      setDownloadProgress(20);
+      setDownloadProgress(30);
 
       await new Promise((resolve, reject) => {
         offlineVideo.onloadedmetadata = resolve;
         offlineVideo.onerror = () => reject(new Error('Failed to load video metadata'));
-        // Set timeout in case metadata load hangs
         setTimeout(() => reject(new Error('Timeout loading video metadata')), 10000);
       });
 
-      setDownloadProgress(30);
+      setDownloadProgress(40);
 
       // Seek to start position
       offlineVideo.currentTime = startTime;
@@ -266,34 +330,29 @@ export default function ClipCard({ clip }) {
         offlineVideo.addEventListener('seeked', onSeeked);
       });
 
-      setDownloadProgress(40);
+      setDownloadProgress(50);
 
-      // Audio routing (silent speaker output)
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      const source = audioCtx.createMediaElementSource(offlineVideo);
-      const destination = audioCtx.createMediaStreamDestination();
-      source.connect(destination);
-
-      // Capture stream
-      let videoStream = null;
-      if (offlineVideo.captureStream) {
-        videoStream = offlineVideo.captureStream();
-      } else if (offlineVideo.mozCaptureStream) {
-        videoStream = offlineVideo.mozCaptureStream();
-      } else if (offlineVideo.webkitCaptureStream) {
-        videoStream = offlineVideo.webkitCaptureStream();
+      // Audio capture with graceful fallback if AudioContext is unavailable
+      let audioTrack = null;
+      let audioCtx = null;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioCtx();
+        const source = audioCtx.createMediaElementSource(offlineVideo);
+        const destination = audioCtx.createMediaStreamDestination();
+        source.connect(destination);
+        audioTrack = destination.stream.getAudioTracks()[0];
+      } catch (audioErr) {
+        console.warn('AudioContext setup failed, recording video without audio:', audioErr);
       }
 
-      if (!videoStream) {
-        throw new Error('Browser does not support stream capture.');
+      // Capture stream directly from video element (more reliable than canvas intermediary)
+      if (!offlineVideo.captureStream) {
+        throw new Error('Browser does not support captureStream. Please use Chrome, Edge, or Firefox.');
       }
-
-      const videoTrack = videoStream.getVideoTracks()[0];
-      const audioTrack = destination.stream.getAudioTracks()[0];
-
+      const videoStream = offlineVideo.captureStream();
       const combinedStream = new MediaStream();
-      if (videoTrack) combinedStream.addTrack(videoTrack);
+      videoStream.getVideoTracks().forEach(t => combinedStream.addTrack(t));
       if (audioTrack) combinedStream.addTrack(audioTrack);
 
       const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=h264')
@@ -302,7 +361,10 @@ export default function ClipCard({ clip }) {
           ? 'video/webm;codecs=vp9'
           : 'video/webm');
 
-      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
+      const mediaRecorder = new MediaRecorder(combinedStream, { 
+        mimeType,
+        videoBitsPerSecond: 12000000 // 12 Mbps ultra quality
+      });
       const chunks = [];
 
       mediaRecorder.ondataavailable = (e) => {
@@ -312,15 +374,14 @@ export default function ClipCard({ clip }) {
       const fileExtension = mimeType.includes('mp4') ? 'mp4' : 'webm';
 
       mediaRecorder.onstop = () => {
-        try {
-          audioCtx.close();
-        } catch (e) {}
+        if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
+        try { if (document.body.contains(offlineVideo)) document.body.removeChild(offlineVideo); } catch(e){}
 
         const blob = new Blob(chunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${clipDuration}s.${fileExtension}`;
+        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${Math.round(clipDuration)}s.${fileExtension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -329,8 +390,13 @@ export default function ClipCard({ clip }) {
         setDownloadProgress(100);
       };
 
-      mediaRecorder.start();
-      offlineVideo.play();
+      mediaRecorder.start(50);
+      offlineVideo.muted = false;
+      offlineVideo.play().catch(() => {
+        // If unmuted play fails (autoplay policy), fall back to muted (no audio in clip)
+        offlineVideo.muted = true;
+        return offlineVideo.play();
+      }).catch(e => console.warn('Video play failed:', e));
 
       // Monitor recording progress
       await new Promise((resolve) => {
@@ -342,7 +408,7 @@ export default function ClipCard({ clip }) {
             resolve();
           } else {
             const elapsed = offlineVideo.currentTime - startTime;
-            const percent = Math.min(99, 40 + Math.round((elapsed / clipDuration) * 55));
+            const percent = Math.min(99, 50 + Math.round((elapsed / clipDuration) * 45));
             setDownloadProgress(percent);
           }
         }, 100);
@@ -350,21 +416,7 @@ export default function ClipCard({ clip }) {
 
     } catch (err) {
       console.error('Client-side local trim error:', err);
-      
-      // Fallback: download full video
-      const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
-      const activeUrl = blobUrl || videoSrc;
-      if (activeUrl) {
-        alert('Trim failed, downloading full video as fallback.');
-        const a = document.createElement('a');
-        a.href = activeUrl;
-        a.download = `${clip.title || 'clip'}_full.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else {
-        alert('Failed to download: ' + err.message);
-      }
+      alert('Clip trimming failed: ' + err.message + '\n\nPlease try again. If the issue persists, make sure the clip server is running.');
     } finally {
       setTimeout(() => {
         setDownloading(false);

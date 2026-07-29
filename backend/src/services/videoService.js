@@ -32,7 +32,15 @@ const cutClip = (videoPath, startTime, endTime, outputPath, aspectRatio = '9:16'
       .videoCodec('libx264')
       .audioCodec('aac');
 
-    const outputOpts = ['-preset fast', '-crf 23'];
+    const outputOpts = [
+      '-preset fast',
+      '-crf 22',
+      '-pix_fmt yuv420p',
+      '-r 30',
+      '-g 60',
+      '-avoid_negative_ts make_zero',
+      '-movflags +faststart'
+    ];
 
     if (aspectRatio === '9:16') {
       outputOpts.push('-vf', 'crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920');

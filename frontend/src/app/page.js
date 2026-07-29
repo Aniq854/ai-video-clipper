@@ -114,9 +114,9 @@ export default function Home() {
           return {
             _id: `clip_${jobId}_${index + 1}`,
             jobId,
-            title: (titles[index % titles.length] || `🔥 Viral Clip #${index + 1}`) + partText,
-            reason: (reasons[index % reasons.length] || `AI Extracted viral moment #${index + 1}.`),
-            viralityScore: Math.max(5.0, parseFloat((scores[index % scores.length] - (partNum - 1) * 0.2).toFixed(1))),
+            title: `Clip ${index + 1} — ${Math.floor(start/60)}:${String(Math.floor(start%60)).padStart(2,'0')} to ${Math.floor(end/60)}:${String(Math.floor(end%60)).padStart(2,'0')}`,
+            reason: 'Auto-segmented clip. Backend AI analysis may provide more accurate clip detection when available.',
+            viralityScore: 7,
             startTime: start,
             endTime: end,
             duration: end - start,
