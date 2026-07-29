@@ -44,16 +44,17 @@ export default function ClipCard({ clip }) {
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      const cur = videoRef.current.currentTime;
-      if (cur >= playEnd || cur < playStart) {
-        videoRef.current.currentTime = playStart;
-        videoRef.current.pause();
-        setIsPlaying(false);
-        setClipCurrentTime(0);
-      } else {
-        setClipCurrentTime(Math.max(0, cur - playStart));
-      }
+    if (!videoRef.current || videoRef.current.seeking) return;
+    const cur = videoRef.current.currentTime;
+    
+    // Stop playback if we reached the clip end boundary
+    if (cur >= playEnd) {
+      videoRef.current.currentTime = playStart;
+      videoRef.current.pause();
+      setIsPlaying(false);
+      setClipCurrentTime(0);
+    } else if (cur >= playStart) {
+      setClipCurrentTime(Math.max(0, cur - playStart));
     }
   };
 
@@ -147,8 +148,9 @@ export default function ClipCard({ clip }) {
     if (videoRef.current.currentTime >= playEnd || videoRef.current.currentTime < playStart) {
       videoRef.current.currentTime = playStart;
     }
-    videoRef.current.play();
-    setIsPlaying(true);
+    videoRef.current.play().then(() => {
+      setIsPlaying(true);
+    }).catch(e => console.warn('Play error:', e));
   };
 
   const togglePlay = () => {
