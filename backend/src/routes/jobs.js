@@ -35,6 +35,7 @@ router.get('/:id/clips', async (req, res) => {
       const clipObj = clip.toObject();
       clipObj.previewUrl = `/api/preview/${clip._id}`;
       clipObj.downloadUrl = `/api/download/${clip._id}`;
+      clipObj.thumbnailUrl = `/api/download/thumbnail/${clip._id}`;
       return clipObj;
     });
 

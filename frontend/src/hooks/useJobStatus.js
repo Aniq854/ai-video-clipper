@@ -15,54 +15,32 @@ export default function useJobStatus(jobId) {
     let interval;
     let isMounted = true;
 
-    // Load from sessionStorage immediately for instant display
-    if (typeof window !== 'undefined') {
-      const cachedJob = sessionStorage.getItem(`job_${jobId}`);
-      const cachedClips = sessionStorage.getItem(`clips_${jobId}`);
-      if (cachedJob && cachedClips) {
-        setJob(JSON.parse(cachedJob));
-        setClips(JSON.parse(cachedClips));
-        setLoading(false);
-      }
-    }
-
-    // Always try to fetch from backend (for real AI-generated clips)
     const fetchStatus = async () => {
       try {
         const jobData = await api.getJobStatus(jobId);
         if (!isMounted) return;
-        
+
         if (jobData.status === 'done') {
           const clipsData = await api.getJobClips(jobId);
           if (!isMounted) return;
-          
-          // Backend returned real AI clips — update state and cache
+
           setJob(jobData);
           setClips(clipsData);
           setLoading(false);
           if (interval) clearInterval(interval);
-
-          // Update sessionStorage with real AI data
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(`job_${jobId}`, JSON.stringify(jobData));
-            sessionStorage.setItem(`clips_${jobId}`, JSON.stringify(clipsData));
-          }
         } else if (jobData.status === 'failed') {
-          if (!isMounted) return;
-          // Backend processing failed — keep showing cached clips if available
-          setJob(prev => prev || jobData);
+          setJob(jobData);
+          setError(jobData.error || 'Video processing failed.');
           setLoading(false);
           if (interval) clearInterval(interval);
         } else {
-          if (!isMounted) return;
-          // Still processing — update job status but keep cached clips visible
-          setJob(prev => ({ ...(prev || {}), ...jobData }));
+          setJob(jobData);
           setLoading(false);
         }
       } catch (err) {
-        // Backend unreachable — use cached data silently
         if (!isMounted) return;
-        console.warn('Backend fetch failed, using cached data:', err.message);
+        console.error('Failed to fetch job status:', err);
+        setError('Failed to fetch job status. Make sure the backend server is running.');
         setLoading(false);
         if (interval) clearInterval(interval);
       }

@@ -3,36 +3,32 @@ const fs = require('fs');
 const path = require('path');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+// Parse a JSON object out of a model response that may be wrapped in fences.
+const parseJsonObject = (text) => {
+  if (!text) throw new Error('Empty model response');
+  let cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start !== -1 && end !== -1 && end > start) {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+    throw e;
+  }
+};
+
 const transcribeWithGemini = async (audioPath) => {
   console.log('🎙️ Transcribing audio using Google Gemini API...');
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: MODEL_NAME,
     generationConfig: {
       temperature: 0.2,
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
-          text: { type: 'STRING' },
-          segments: {
-            type: 'ARRAY',
-            items: {
-              type: 'OBJECT',
-              properties: {
-                id: { type: 'NUMBER' },
-                start: { type: 'NUMBER' },
-                end: { type: 'NUMBER' },
-                text: { type: 'STRING' }
-              },
-              required: ['id', 'start', 'end', 'text']
-            }
-          }
-        },
-        required: ['text', 'segments']
-      }
     },
-    systemInstruction: 'You are a professional audio transcriber. Transcribe the audio precisely into timed segments in seconds.'
   });
 
   const stat = fs.statSync(audioPath);
@@ -49,7 +45,9 @@ const transcribeWithGemini = async (audioPath) => {
   }
 
   const base64Audio = audioBuffer.toString('base64');
-  const prompt = 'Transcribe this audio file into segments with id, start (seconds), end (seconds), and text.';
+  const prompt = `You are a professional audio transcriber. Transcribe this audio precisely into timed segments in seconds.
+Respond with ONLY a raw JSON object (no markdown, no prose) of the shape:
+{ "text": string, "segments": [ { "id": number, "start": number, "end": number, "text": string } ] }`;
 
   const result = await model.generateContent([
     {
@@ -62,7 +60,7 @@ const transcribeWithGemini = async (audioPath) => {
   ]);
 
   const responseText = result.response.text();
-  return JSON.parse(responseText);
+  return parseJsonObject(responseText);
 };
 
 const generateFallbackTranscript = (audioPath) => {

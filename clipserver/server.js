@@ -160,25 +160,32 @@ app.post('/api/youtube/clip', async (req, res) => {
     // If fallback (full video), we need to seek to the actual start time
     const trimStart = usedSections ? 0 : start;
 
-    // Fast & accurate re-encode with YUV420P, 30FPS constant rate, 2s GOP keyframes
+    // Smooth H.264 re-encode: PTS reset, constant 30fps, 1s keyframes, no scene-cut keyframes
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .setStartTime(trimStart)
-        .setDuration(duration)
+        .inputOptions([`-ss ${trimStart}`])
         .output(trimmedPath)
         .outputOptions([
           '-y',
+          `-t ${duration}`,
           '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '22',
+          '-preset', 'fast',
+          '-crf', '23',
           '-pix_fmt', 'yuv420p',
+          '-vsync', 'cfr',
           '-r', '30',
-          '-g', '60',
+          '-g', '30',
+          '-keyint_min', '30',
+          '-sc_threshold', '0',
+          '-vf', 'setpts=PTS-STARTPTS',
+          '-af', 'asetpts=PTS-STARTPTS',
           '-c:a', 'aac',
           '-ar', '44100',
           '-ac', '2',
           '-b:a', '128k',
+          '-shortest',
           '-avoid_negative_ts', 'make_zero',
+          '-max_muxing_queue_size', '1024',
           '-movflags', '+faststart'
         ])
         .on('end', () => {
@@ -186,12 +193,11 @@ app.post('/api/youtube/clip', async (req, res) => {
           resolve();
         })
         .on('error', (err) => {
-          console.warn('FFmpeg ultrafast encode failed, trying stream-copy:', err.message);
+          console.warn('FFmpeg encode failed, trying stream-copy:', err.message);
           ffmpeg(downloadPath)
-            .setStartTime(trimStart)
-            .setDuration(duration)
+            .inputOptions([`-ss ${trimStart}`])
             .output(trimmedPath)
-            .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
+            .outputOptions(['-y', `-t ${duration}`, '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
             .on('end', () => {
               console.log(`✅ Trimmed (stream-copy fallback): ${trimmedPath}`);
               resolve();
@@ -273,22 +279,19 @@ async function prepareClipInBackground(youtubeId, start, end, cachedFilePath, ta
       throw new Error('Downloaded file not found');
     }
 
-    // Trim the downloaded video using FFmpeg
-    // Try stream-copy first, fallback to re-encode for accurate cuts
+    // Trim with full re-encode: PTS reset, constant 30fps, 1s keyframes
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .setStartTime(0)
-        .setDuration(duration)
+        .inputOptions(['-ss 0'])
         .output(cachedFilePath)
-        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions(['-y', `-t ${duration}`, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vsync', 'cfr', '-r', '30', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0', '-vf', 'setpts=PTS-STARTPTS', '-af', 'asetpts=PTS-STARTPTS', '-c:a', 'aac', '-ar', '44100', '-ac', '2', '-shortest', '-avoid_negative_ts', 'make_zero', '-max_muxing_queue_size', '1024', '-movflags', '+faststart'])
         .on('end', resolve)
         .on('error', (err) => {
-          console.warn('[BG] Stream-copy failed, re-encoding:', err.message);
+          console.warn('[BG] Re-encode failed, trying stream-copy:', err.message);
           ffmpeg(downloadPath)
-            .setStartTime(0)
-            .setDuration(duration)
+            .inputOptions(['-ss 0'])
             .output(cachedFilePath)
-            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', `-t ${duration}`, '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
             .on('end', resolve)
             .on('error', reject)
             .run();
@@ -388,31 +391,28 @@ app.get('/api/youtube/stream', async (req, res) => {
       return res.status(500).json({ error: 'Failed to download video stream' });
     }
 
-    // Trim the video to exact timestamps using FFmpeg and cache it
-    // Try stream-copy first, fallback to re-encode for accurate cuts
+    // Full re-encode with PTS reset, constant 30fps, 1s keyframes for smooth playback
     await new Promise((resolve, reject) => {
       ffmpeg(downloadPath)
-        .setStartTime(0)
-        .setDuration(duration)
+        .inputOptions(['-ss 0'])
         .output(cachedFilePath)
-        .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_start'])
+        .outputOptions(['-y', `-t ${duration}`, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vsync', 'cfr', '-r', '30', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0', '-vf', 'setpts=PTS-STARTPTS', '-af', 'asetpts=PTS-STARTPTS', '-c:a', 'aac', '-ar', '44100', '-ac', '2', '-shortest', '-avoid_negative_ts', 'make_zero', '-max_muxing_queue_size', '1024', '-movflags', '+faststart'])
         .on('end', () => {
-          console.log(`✅ Cached stream generated (stream-copy): ${cachedFilePath}`);
+          console.log(`✅ Cached stream generated (smooth H.264): ${cachedFilePath}`);
           resolve();
         })
         .on('error', (err) => {
-          console.warn('FFmpeg stream-copy error, re-encoding:', err.message);
+          console.warn('FFmpeg encode error, trying stream-copy:', err.message);
           ffmpeg(downloadPath)
-            .setStartTime(0)
-            .setDuration(duration)
+            .inputOptions(['-ss 0'])
             .output(cachedFilePath)
-            .outputOptions(['-y', '-c:v', 'libx264', '-c:a', 'aac', '-preset', 'fast', '-crf', '23', '-movflags', '+faststart'])
+            .outputOptions(['-y', `-t ${duration}`, '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
             .on('end', () => {
-              console.log(`✅ Cached stream generated (re-encoded): ${cachedFilePath}`);
+              console.log(`✅ Cached stream generated (stream-copy fallback): ${cachedFilePath}`);
               resolve();
             })
             .on('error', (err2) => {
-              console.error('FFmpeg re-encode also failed:', err2.message);
+              console.error('FFmpeg fallback also failed:', err2.message);
               if (fs.existsSync(downloadPath)) {
                 fs.copyFileSync(downloadPath, cachedFilePath);
               }
@@ -468,25 +468,32 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
 
     console.log(`✂️ Local trim: ${startTime}s -> ${endTime}s (${duration}s)`);
 
-    // Fast & accurate re-encode with YUV420P, 30FPS constant rate, 2s GOP keyframes for 100% smooth playback
+    // Smooth H.264 re-encode: PTS reset, constant 30fps, 1s keyframes, no scene-cut keyframes
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
-        .setStartTime(startTime)
-        .setDuration(duration)
+        .inputOptions([`-ss ${startTime}`])
         .output(outputPath)
         .outputOptions([
           '-y',
+          `-t ${duration}`,
           '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '22',
+          '-preset', 'fast',
+          '-crf', '23',
           '-pix_fmt', 'yuv420p',
+          '-vsync', 'cfr',
           '-r', '30',
-          '-g', '60',
+          '-g', '30',
+          '-keyint_min', '30',
+          '-sc_threshold', '0',
+          '-vf', 'setpts=PTS-STARTPTS',
+          '-af', 'asetpts=PTS-STARTPTS',
           '-c:a', 'aac',
           '-ar', '44100',
           '-ac', '2',
           '-b:a', '128k',
+          '-shortest',
           '-avoid_negative_ts', 'make_zero',
+          '-max_muxing_queue_size', '1024',
           '-movflags', '+faststart'
         ])
         .on('end', () => {
@@ -494,12 +501,11 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
           resolve();
         })
         .on('error', (err, stdout, stderr) => {
-          console.warn(`Ultrafast encode failed, trying stream-copy: ${err.message}`);
+          console.warn(`Encode failed, trying stream-copy: ${err.message}`);
           ffmpeg(inputPath)
-            .setStartTime(startTime)
-            .setDuration(duration)
+            .inputOptions([`-ss ${startTime}`])
             .output(outputPath)
-            .outputOptions(['-y', '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
+            .outputOptions(['-y', `-t ${duration}`, '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
             .on('end', () => {
               console.log(`✅ Local trim done (stream-copy fallback): ${outputPath}`);
               resolve();

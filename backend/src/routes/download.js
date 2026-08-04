@@ -21,13 +21,26 @@ router.get('/thumbnail/:clipId', async (req, res) => {
   }
 });
 
+// Make titles safe for filenames (strip emojis / special characters)
+const safeFilename = (title, fallback) => {
+  const cleaned = (title || '')
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    .trim()
+    .replace(/\s+/g, '_');
+  return cleaned || fallback;
+};
+
 // GET /api/download/:clipId - Single clip download
 router.get('/:clipId', async (req, res) => {
   try {
     const clip = await Clip.findById(req.params.clipId);
     if (!clip) return res.status(404).json({ error: 'Clip not found' });
 
-    res.download(clip.clipPath, `${clip.title || 'clip'}.mp4`);
+    if (!clip.clipPath || !fs.existsSync(clip.clipPath)) {
+      return res.status(404).json({ error: 'Clip file not found on server' });
+    }
+
+    res.download(clip.clipPath, `${safeFilename(clip.title, 'clip')}.mp4`);
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Internal server error', message: error.message });
@@ -53,7 +66,7 @@ router.get('/:jobId/all', async (req, res) => {
 
     clips.forEach((clip, index) => {
       if (fs.existsSync(clip.clipPath)) {
-        archive.file(clip.clipPath, { name: `${clip.title || `clip_${index + 1}`}.mp4` });
+        archive.file(clip.clipPath, { name: `${safeFilename(clip.title, `clip_${index + 1}`)}.mp4` });
       }
     });
 

@@ -2,12 +2,13 @@
 
 export default function ProgressTracker({ status, progress }) {
   const steps = [
-    { id: 'uploading', label: 'Uploading Video' },
-    { id: 'extracting', label: 'Extracting Audio' },
+    { id: 'downloading', label: 'Downloading Video' },
+    { id: 'processing', label: 'Preparing Video' },
+    { id: 'extracting_audio', label: 'Extracting Audio' },
     { id: 'transcribing', label: 'Transcribing' },
     { id: 'analyzing', label: 'AI Analysis' },
     { id: 'cutting', label: 'Cutting Clips' },
-    { id: 'thumbnails', label: 'Generating Thumbnails' },
+    { id: 'generating_thumbnails', label: 'Generating Thumbnails' },
     { id: 'done', label: 'Complete' }
   ];
 

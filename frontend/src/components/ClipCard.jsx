@@ -1,173 +1,99 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import { useState, useRef } from 'react';
 
-let CLIP_SERVER = 'https://clipai-server.onrender.com';
-if (typeof window !== 'undefined') {
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    CLIP_SERVER = 'http://localhost:4000';
-  } else if (process.env.NEXT_PUBLIC_CLIP_SERVER) {
-    CLIP_SERVER = process.env.NEXT_PUBLIC_CLIP_SERVER;
-  }
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function ClipCard({ clip }) {
-  const [videoSrc, setVideoSrc] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [clipCurrentTime, setClipCurrentTime] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
   const [downloading, setDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [isPreparing, setIsPreparing] = useState(false);
-  const [prepareMessage, setPrepareMessage] = useState('');
   const videoRef = useRef(null);
 
-  const startTime = clip.startTime || 0;
-  const endTime = clip.endTime || (startTime + 30);
-  const clipDuration = Math.max(1, endTime - startTime);
-  const isYoutube = Boolean(clip.youtubeId);
+  const clipDuration = Math.max(1, Math.round(clip.duration || (clip.endTime - clip.startTime) || 30));
 
-  const isStreamed = isYoutube;
-  const playStart = isStreamed ? 0 : startTime;
-  const playEnd = isStreamed ? clipDuration : endTime;
+  // Backend serves the already-cut clip files (FFmpeg output, smooth playback)
+  const previewUrl = clip.previewUrl ? `${API_BASE}${clip.previewUrl}` : '';
+  const downloadUrl = clip.downloadUrl ? `${API_BASE}${clip.downloadUrl}` : '';
+  const thumbnailUrl = clip.thumbnailUrl
+    ? (clip.thumbnailUrl.startsWith('http') ? clip.thumbnailUrl : `${API_BASE}${clip.thumbnailUrl}`)
+    : null;
 
-  // Don't auto-set videoSrc for local clips on mount to prevent opening 15 video decoders simultaneously.
-  // Lazy-load videoSrc only when user clicks Play.
+  const togglePlay = () => {
+    if (!videoRef.current) {
+      // First click: mount the video element lazily
+      setLoaded(true);
+      setIsPlaying(true);
+      return;
+    }
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      // Pause other playing videos on the page to avoid decoder conflicts
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('video').forEach(v => {
+          if (v !== videoRef.current) {
+            try { v.pause(); } catch (e) {}
+          }
+        });
+      }
+      videoRef.current.play().catch(err => console.warn('Play error:', err));
+      setIsPlaying(true);
+    }
+  };
 
   const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = playStart;
-      if (isPlaying) {
-        videoRef.current.play().catch(err => console.warn('Auto-play error:', err));
-      }
+    if (videoRef.current && isPlaying) {
+      videoRef.current.play().catch(err => console.warn('Auto-play error:', err));
     }
   };
 
   const handleTimeUpdate = () => {
-    if (!videoRef.current || videoRef.current.seeking) return;
-    const cur = videoRef.current.currentTime;
-    
-    // Stop playback if we reached the clip end boundary
-    if (cur >= playEnd) {
-      videoRef.current.currentTime = playStart;
-      videoRef.current.pause();
-      setIsPlaying(false);
-      setClipCurrentTime(0);
-    } else if (cur >= playStart) {
-      setClipCurrentTime(Math.max(0, cur - playStart));
-    }
-  };
-
-  const checkStatusAndPlay = async () => {
-    // Pause any other playing videos on the page to prevent decoder & audio channel conflicts
-    if (typeof document !== 'undefined') {
-      document.querySelectorAll('video').forEach(v => {
-        if (v !== videoRef.current) {
-          try { v.pause(); } catch (e) {}
-        }
-      });
-    }
-
-    if (!isYoutube) {
-      if (!videoSrc && typeof window !== 'undefined') {
-        const blobUrl = sessionStorage.getItem('current_video_blob_' + clip.jobId);
-        if (blobUrl) {
-          setVideoSrc(blobUrl);
-          setIsPlaying(true);
-          setTimeout(() => {
-            if (videoRef.current) {
-              videoRef.current.currentTime = playStart;
-              videoRef.current.play().catch(e => console.warn('Play error:', e));
-            }
-          }, 100);
-          return;
-        }
-      }
-      playVideo();
-      return;
-    }
-
-    try {
-      setIsPreparing(true);
-      setPrepareMessage('Waking up server...');
-
-      const checkStatus = async () => {
-        try {
-          const res = await fetch(`${CLIP_SERVER}/api/youtube/status?youtubeId=${clip.youtubeId}&startTime=${startTime}&endTime=${endTime}`);
-          const data = await res.json();
-          
-          if (data.ready) {
-            setVideoSrc(`${CLIP_SERVER}/api/youtube/stream?youtubeId=${clip.youtubeId}&startTime=${startTime}&endTime=${endTime}`);
-            setIsPreparing(false);
-            setTimeout(() => {
-              if (videoRef.current) {
-                videoRef.current.play();
-                setIsPlaying(true);
-              }
-            }, 300);
-            return true;
-          } else {
-            setPrepareMessage('Processing clip (10-15s)...');
-            return false;
-          }
-        } catch (e) {
-          console.warn('Status check error:', e);
-          return false;
-        }
-      };
-
-      const isReady = await checkStatus();
-      if (isReady) return;
-
-      const interval = setInterval(async () => {
-        const ready = await checkStatus();
-        if (ready) {
-          clearInterval(interval);
-        }
-      }, 2500);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        setIsPreparing(prev => {
-          if (prev) {
-            alert('Clip preparation timed out. Please try again.');
-          }
-          return false;
-        });
-      }, 90000);
-
-    } catch (err) {
-      console.error(err);
-      setIsPreparing(false);
-      alert('Failed to connect to clip server.');
-    }
-  };
-
-  const playVideo = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.currentTime >= playEnd || videoRef.current.currentTime < playStart) {
-      videoRef.current.currentTime = playStart;
-    }
-    videoRef.current.play().then(() => {
-      setIsPlaying(true);
-    }).catch(e => console.warn('Play error:', e));
-  };
-
-  const togglePlay = () => {
-    if (isPlaying) {
-      if (videoRef.current) videoRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      checkStatusAndPlay();
+    if (videoRef.current && !videoRef.current.seeking) {
+      setCurrentTime(videoRef.current.currentTime);
     }
   };
 
   const handleSeek = (e) => {
-    const relativePercent = parseFloat(e.target.value);
-    const newTime = playStart + (relativePercent / 100) * clipDuration;
+    const percent = parseFloat(e.target.value);
     if (videoRef.current) {
+      const newTime = (percent / 100) * (videoRef.current.duration || clipDuration);
       videoRef.current.currentTime = newTime;
-      setClipCurrentTime(newTime - playStart);
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (downloading || !downloadUrl) return;
+    setDownloading(true);
+    try {
+      // Fetch the actual server-side FFmpeg-cut MP4 as a binary blob
+      // This prevents Chrome from saving its own WebM stream recording
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'clip'}_${clipDuration}s.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Cleanup the blob URL after download starts
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 5000);
+    } catch (err) {
+      console.error('Download error:', err);
+      // Fallback: try direct link download
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'clip'}_${clipDuration}s.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      setTimeout(() => setDownloading(false), 1500);
     }
   };
 
@@ -183,319 +109,30 @@ export default function ClipCard({ clip }) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // ===== REAL TRIM & DOWNLOAD =====
-  const handleDownloadTrimmed = async () => {
-    if (downloading) return;
-
-    // YouTube clip: call backend server to download + trim
-    if (isYoutube && clip.youtubeId) {
-      if (!CLIP_SERVER) {
-        alert('Clip server not configured. Please set NEXT_PUBLIC_CLIP_SERVER environment variable.');
-        return;
-      }
-
-      try {
-        setDownloading(true);
-        setDownloadProgress(10);
-
-        const youtubeUrl = `https://www.youtube.com/watch?v=${clip.youtubeId}`;
-        
-        setDownloadProgress(20);
-
-        const response = await fetch(`${CLIP_SERVER}/api/youtube/clip`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            youtubeUrl,
-            startTime,
-            endTime,
-            clipIndex: clip._id
-          })
-        });
-
-        setDownloadProgress(70);
-
-        if (!response.ok) {
-          throw new Error('Server returned error');
-        }
-
-        const blob = await response.blob();
-        setDownloadProgress(90);
-
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${clipDuration}s.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        setDownloadProgress(100);
-      } catch (err) {
-        console.error('YouTube clip download error:', err);
-        alert('Clip download failed. Server may be starting up — please try again in 30 seconds.');
-      } finally {
-        setTimeout(() => {
-          setDownloading(false);
-          setDownloadProgress(0);
-        }, 1000);
-      }
-      return;
-    }
-
-    // Local video: Try Server-side FFmpeg trim first for 100% smooth, stutter-free MP4 clip
-    try {
-      setDownloading(true);
-      setDownloadProgress(10);
-
-      // Pause all active playing videos in the DOM to free browser decoders & GPU memory
-      if (typeof document !== 'undefined') {
-        document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch(e){} });
-      }
-
-      const blobUrl = typeof window !== 'undefined' 
-        ? sessionStorage.getItem('current_video_blob_' + clip.jobId) 
-        : null;
-
-      const activeUrl = blobUrl || videoSrc;
-
-      if (!activeUrl) {
-        throw new Error('Video source not found. Please re-upload.');
-      }
-
-      // Try Server FFmpeg Trim first with 6s timeout to prevent hanging on slow uploads
-      if (CLIP_SERVER) {
-        try {
-          setDownloadProgress(20);
-          const videoBlobRes = await fetch(activeUrl);
-          const rawBlob = await videoBlobRes.blob();
-
-          setDownloadProgress(40);
-          const formData = new FormData();
-          formData.append('video', rawBlob, 'local_video.mp4');
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-          const serverRes = await fetch(`${CLIP_SERVER}/api/trim?start=${startTime}&end=${endTime}`, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-
-          if (serverRes.ok) {
-            setDownloadProgress(80);
-            const trimmedBlob = await serverRes.blob();
-            setDownloadProgress(95);
-
-            const url = URL.createObjectURL(trimmedBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${Math.round(clipDuration)}s.mp4`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            setDownloadProgress(100);
-            return;
-          }
-        } catch (serverErr) {
-          console.warn('Server FFmpeg trim fallback to client recorder:', serverErr);
-        }
-      }
-
-      // Fallback: Smooth Client-side Recorder
-      const offlineVideo = document.createElement('video');
-      offlineVideo.muted = true;
-      offlineVideo.preload = 'auto';
-      offlineVideo.crossOrigin = 'anonymous';
-      offlineVideo.playsInline = true;
-      offlineVideo.style.cssText = 'position:fixed; bottom:0; right:0; width:1px; height:1px; z-index:-1; opacity:0.01; pointer-events:none;';
-      document.body.appendChild(offlineVideo);
-      offlineVideo.src = activeUrl;
-
-      setDownloadProgress(30);
-
-      await new Promise((resolve, reject) => {
-        if (offlineVideo.readyState >= 1) return resolve();
-        let loaded = false;
-        const timer = setTimeout(() => {
-          if (!loaded) { loaded = true; resolve(); }
-        }, 5000);
-        offlineVideo.onloadedmetadata = () => {
-          if (!loaded) { loaded = true; clearTimeout(timer); resolve(); }
-        };
-        offlineVideo.onerror = () => reject(new Error('Failed to load video metadata'));
-      });
-
-      setDownloadProgress(40);
-
-      // Seek to start position with robust fallback
-      await new Promise((resolve) => {
-        if (Math.abs(offlineVideo.currentTime - startTime) < 0.1) {
-          return resolve();
-        }
-        let seekDone = false;
-        const timer = setTimeout(() => {
-          if (!seekDone) { seekDone = true; resolve(); }
-        }, 2000);
-        const onSeeked = () => {
-          if (!seekDone) {
-            seekDone = true;
-            clearTimeout(timer);
-            offlineVideo.removeEventListener('seeked', onSeeked);
-            resolve();
-          }
-        };
-        offlineVideo.addEventListener('seeked', onSeeked);
-        offlineVideo.currentTime = startTime;
-      });
-
-      setDownloadProgress(50);
-
-      // Audio capture with graceful fallback if AudioContext is unavailable
-      let audioTrack = null;
-      let audioCtx = null;
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioCtx();
-        const source = audioCtx.createMediaElementSource(offlineVideo);
-        const destination = audioCtx.createMediaStreamDestination();
-        source.connect(destination);
-        audioTrack = destination.stream.getAudioTracks()[0];
-      } catch (audioErr) {
-        console.warn('AudioContext setup failed, recording video without audio:', audioErr);
-      }
-
-      // Capture stream directly from video element (more reliable than canvas intermediary)
-      if (!offlineVideo.captureStream) {
-        throw new Error('Browser does not support captureStream. Please use Chrome, Edge, or Firefox.');
-      }
-      const videoStream = offlineVideo.captureStream();
-      const combinedStream = new MediaStream();
-      videoStream.getVideoTracks().forEach(t => combinedStream.addTrack(t));
-      if (audioTrack) combinedStream.addTrack(audioTrack);
-
-      const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=h264')
-        ? 'video/mp4;codecs=h264'
-        : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-          ? 'video/webm;codecs=vp9'
-          : 'video/webm');
-
-      const mediaRecorder = new MediaRecorder(combinedStream, { 
-        mimeType,
-        videoBitsPerSecond: 12000000 // 12 Mbps ultra quality
-      });
-      const chunks = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      const fileExtension = mimeType.includes('mp4') ? 'mp4' : 'webm';
-
-      mediaRecorder.onstop = () => {
-        if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
-        try { if (document.body.contains(offlineVideo)) document.body.removeChild(offlineVideo); } catch(e){}
-
-        const blob = new Blob(chunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${(clip.title || 'clip').replace(/[^a-zA-Z0-9 ]/g, '').trim()}_${Math.round(clipDuration)}s.${fileExtension}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        setDownloadProgress(100);
-      };
-
-      mediaRecorder.start(50);
-      offlineVideo.muted = false;
-      offlineVideo.play().catch(() => {
-        // If unmuted play fails (autoplay policy), fall back to muted (no audio in clip)
-        offlineVideo.muted = true;
-        return offlineVideo.play();
-      }).catch(e => console.warn('Video play failed:', e));
-
-      // Monitor recording progress
-      await new Promise((resolve) => {
-        const interval = setInterval(() => {
-          if (offlineVideo.currentTime >= endTime || offlineVideo.paused || offlineVideo.ended) {
-            clearInterval(interval);
-            offlineVideo.pause();
-            mediaRecorder.stop();
-            resolve();
-          } else {
-            const elapsed = offlineVideo.currentTime - startTime;
-            const percent = Math.min(99, 50 + Math.round((elapsed / clipDuration) * 45));
-            setDownloadProgress(percent);
-          }
-        }, 100);
-      });
-
-    } catch (err) {
-      console.error('Client-side local trim error:', err);
-      alert('Clip trimming failed: ' + err.message + '\n\nPlease try again. If the issue persists, make sure the clip server is running.');
-    } finally {
-      setTimeout(() => {
-        setDownloading(false);
-        setDownloadProgress(0);
-      }, 1000);
-    }
-  };
-
-  const progressPercent = Math.min(100, Math.max(0, (clipCurrentTime / clipDuration) * 100));
+  const progressPercent = Math.min(100, Math.max(0, (currentTime / clipDuration) * 100));
 
   return (
     <div className="card clip-card">
       <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
         .play-overlay:hover {
           transform: scale(1.1);
           background: rgba(0,0,0,0.8) !important;
         }
       `}</style>
       <div style={{ position: 'relative', width: '100%', paddingTop: '177.77%', backgroundColor: '#000', borderRadius: '0.5rem', overflow: 'hidden', marginBottom: '1rem' }}>
-        {/* Loading Overlay */}
-        {isPreparing && (
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20, gap: '1rem', color: '#fff', padding: '1rem', textAlign: 'center' }}>
-            <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTop: '4px solid #ffffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-            <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{prepareMessage}</span>
-          </div>
-        )}
-
-        {/* Downloading Overlay */}
-        {downloading && (
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(9,9,11,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 25, gap: '1rem', color: '#ffffff', padding: '1.5rem', textAlign: 'center' }}>
-            <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTop: '4px solid #ffffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-            <span style={{ fontSize: '0.95rem', fontWeight: '600' }}>Downloading clip...</span>
-            <div style={{ width: '100%', height: '6px', background: '#27272a', borderRadius: '3px', overflow: 'hidden', marginTop: '0.5rem' }}>
-              <div style={{ width: `${downloadProgress}%`, height: '100%', background: '#ffffff', transition: 'width 0.3s' }}></div>
-            </div>
-            <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>{downloadProgress}% completed</span>
-          </div>
-        )}
-
-        {videoSrc ? (
+        {loaded ? (
           <>
             <video
+              key={previewUrl}
               ref={videoRef}
               playsInline
-              crossOrigin="anonymous"
+              preload="auto"
               onLoadedMetadata={handleLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onEnded={() => setIsPlaying(false)}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-              src={videoSrc}
-              poster={clip.thumbnailUrl || null}
+              src={previewUrl}
+              poster={thumbnailUrl || undefined}
             />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -504,15 +141,15 @@ export default function ClipCard({ clip }) {
                 </button>
                 <input type="range" min="0" max="100" value={progressPercent} onChange={handleSeek} style={{ flex: 1, accentColor: '#ffffff', cursor: 'pointer' }} />
                 <span style={{ color: '#fff', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                  {formatTime(clipCurrentTime)} / {formatTime(clipDuration)}
+                  {formatTime(currentTime)} / {formatTime(clipDuration)}
                 </span>
               </div>
             </div>
           </>
         ) : (
-          <div 
+          <div
             onClick={togglePlay}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', backgroundImage: clip.thumbnailUrl ? `url(${clip.thumbnailUrl})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', backgroundImage: thumbnailUrl ? `url(${thumbnailUrl})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <div style={{ background: 'rgba(0,0,0,0.6)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', border: '2px solid #ffffff' }} className="play-overlay">
               <span style={{ color: '#ffffff', fontSize: '1.5rem', marginLeft: '4px' }}>▶</span>
@@ -527,7 +164,7 @@ export default function ClipCard({ clip }) {
         </h4>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
           <span style={{ fontSize: '0.75rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', color: '#ffffff', fontWeight: '600' }}>
-            ✂️ {formatTime(startTime)} → {formatTime(endTime)} ({clipDuration}s)
+            ✂️ {formatTime(clip.startTime || 0)} → {formatTime(clip.endTime || clipDuration)} ({clipDuration}s)
           </span>
           <span className={`score-badge ${getScoreColorClass(clip.viralityScore)}`}>
             Score: {clip.viralityScore}/10
@@ -539,25 +176,14 @@ export default function ClipCard({ clip }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {downloading ? (
-          <div style={{ width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.4rem', color: '#ffffff' }}>
-              <span>✂️ {isYoutube ? 'Downloading & trimming...' : 'Trimming clip...'}</span>
-              <span>{downloadProgress}%</span>
-            </div>
-            <div style={{ width: '100%', height: '6px', background: '#27272a', borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{ width: `${downloadProgress}%`, height: '100%', background: '#ffffff', transition: 'width 0.3s', boxShadow: '0 0 8px rgba(255,255,255,0.5)' }}></div>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={handleDownloadTrimmed}
-            className="btn-primary"
-            style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
-          >
-            Download {clipDuration}s MP4 Clip
-          </button>
-        )}
+        <button
+          onClick={handleDownload}
+          className="btn-primary"
+          disabled={downloading}
+          style={{ width: '100%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          {downloading ? 'Downloading...' : `Download ${clipDuration}s MP4 Clip`}
+        </button>
       </div>
     </div>
   );

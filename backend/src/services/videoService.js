@@ -26,30 +26,38 @@ const extractAudio = (videoPath, outputPath) => {
 const cutClip = (videoPath, startTime, endTime, outputPath, aspectRatio = '9:16') => {
   return new Promise((resolve, reject) => {
     const duration = Math.max(1, endTime - startTime);
-    const command = ffmpeg(videoPath)
-      .setStartTime(startTime)
-      .setDuration(duration)
-      .videoCodec('libx264')
-      .audioCodec('aac');
 
-    const outputOpts = [
-      '-preset fast',
-      '-crf 22',
-      '-pix_fmt yuv420p',
-      '-r 30',
-      '-g 60',
-      '-avoid_negative_ts make_zero',
-      '-movflags +faststart'
-    ];
-
+    // Build video filter chain: PTS timestamp reset + optional aspect ratio crop
+    let vfChain = 'setpts=PTS-STARTPTS';
     if (aspectRatio === '9:16') {
-      outputOpts.push('-vf', 'crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920');
+      vfChain += ",crop='min(iw,ih*9/16)':'min(ih,iw*16/9)',scale=1080:1920";
     } else if (aspectRatio === '1:1') {
-      outputOpts.push('-vf', 'crop=ih:ih:(iw-ih)/2:0,scale=1080:1080');
+      vfChain += ",crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080";
     }
 
-    command
-      .outputOptions(outputOpts)
+    ffmpeg(videoPath)
+      .inputOptions([`-ss ${startTime}`])
+      .outputOptions([
+        `-t ${duration}`,
+        '-c:v libx264',
+        '-preset fast',
+        '-crf 23',
+        '-pix_fmt yuv420p',
+        '-vsync cfr',
+        '-r 30',
+        '-g 30',
+        '-keyint_min 30',
+        '-sc_threshold 0',
+        '-af asetpts=PTS-STARTPTS',
+        '-vf', vfChain,
+        '-c:a aac',
+        '-ac 2',
+        '-ar 44100',
+        '-shortest',
+        '-avoid_negative_ts make_zero',
+        '-max_muxing_queue_size 1024',
+        '-movflags +faststart'
+      ])
       .save(outputPath)
       .on('end', () => resolve(outputPath))
       .on('error', (err) => {
