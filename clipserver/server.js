@@ -655,9 +655,9 @@ async function processJobInMemory(jobId) {
 
   let vfChain = 'setpts=PTS-STARTPTS';
   if (job.aspectRatio === '9:16') {
-    vfChain += ",crop='min(iw,ih*9/16)':'min(ih,iw*16/9)',scale=1080:1920";
+    vfChain += ",crop='min(iw,ih*9/16)':'min(ih,iw*16/9)'";
   } else if (job.aspectRatio === '1:1') {
-    vfChain += ",crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080";
+    vfChain += ",crop='min(iw,ih)':'min(iw,ih)'";
   }
 
   await new Promise((resolve, reject) => {
