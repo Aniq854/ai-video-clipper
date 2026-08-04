@@ -678,6 +678,14 @@ async function processJobInMemory(jobId) {
       vfChain += ",crop='min(iw,ih)':'min(iw,ih)'";
     }
 
+    let currentCutProgress = 80;
+    const progressTicker = setInterval(() => {
+      if (currentCutProgress < 94) {
+        currentCutProgress += 2;
+        updateStatus('cutting', currentCutProgress);
+      }
+    }, 2000);
+
     await new Promise((resolve, reject) => {
       ffmpeg(job.videoPath)
         .inputOptions([`-ss ${startTime}`])
@@ -705,8 +713,14 @@ async function processJobInMemory(jobId) {
           '-max_muxing_queue_size', '1024',
           '-movflags', '+faststart'
         ])
-        .on('end', resolve)
-        .on('error', reject)
+        .on('end', () => {
+          clearInterval(progressTicker);
+          resolve();
+        })
+        .on('error', (err) => {
+          clearInterval(progressTicker);
+          reject(err);
+        })
         .run();
     });
 
