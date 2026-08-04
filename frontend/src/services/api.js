@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://clipai-server.onrender.com';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,

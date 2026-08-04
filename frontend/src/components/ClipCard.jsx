@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://clipai-server.onrender.com';
 
 export default function ClipCard({ clip }) {
   const [isPlaying, setIsPlaying] = useState(false);
