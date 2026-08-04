@@ -15,6 +15,11 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+// Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend AI Clipper running' });
+});
+
 // Routes
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/youtube', require('./routes/youtube'));

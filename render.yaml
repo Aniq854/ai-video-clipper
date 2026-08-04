@@ -2,7 +2,7 @@ services:
   - type: web
     name: clipai-server
     runtime: node
-    rootDir: clipserver
+    rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -10,4 +10,4 @@ services:
         value: production
     buildFilter:
       paths:
-        - clipserver/**
+        - backend/**
