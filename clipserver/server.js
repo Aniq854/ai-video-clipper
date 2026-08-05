@@ -804,33 +804,26 @@ async function processJobInMemory(jobId) {
           .outputOptions([
             '-y',
             `-t ${clipDuration}`,
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',
-            '-crf', '26',
-            '-pix_fmt', 'yuv420p',
-            '-vsync', 'cfr',
-            '-r', '30',
-            '-g', '30',
-            '-keyint_min', '30',
-            '-sc_threshold', '0',
-            '-vf', vfChain,
-            '-af', 'asetpts=PTS-STARTPTS',
-            '-c:a', 'aac',
-            '-ar', '44100',
-            '-ac', '2',
-            '-b:a', '128k',
-            '-shortest',
+            '-c', 'copy',
             '-avoid_negative_ts', 'make_zero',
-            '-max_muxing_queue_size', '1024',
             '-movflags', '+faststart'
           ])
           .on('end', resolve)
           .on('error', (err) => {
-            console.warn(`FFmpeg clip ${index + 1} re-encode failed, using stream copy fallback:`, err.message);
+            console.warn(`FFmpeg fast copy failed for clip ${index + 1}, trying re-encode:`, err.message);
             ffmpeg(job.videoPath)
               .inputOptions([`-ss ${startTime}`])
               .output(clipPath)
-              .outputOptions(['-y', `-t ${clipDuration}`, '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
+              .outputOptions([
+                '-y',
+                `-t ${clipDuration}`,
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-crf', '28',
+                '-c:a', 'aac',
+                '-avoid_negative_ts', 'make_zero',
+                '-movflags', '+faststart'
+              ])
               .on('end', resolve)
               .on('error', reject)
               .run();
