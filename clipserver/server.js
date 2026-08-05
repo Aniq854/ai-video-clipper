@@ -806,7 +806,11 @@ app.post('/api/youtube', async (req, res) => {
         await processJobInMemory(jobId);
       } catch (err) {
         console.error(`YouTube Job ${jobId} error:`, err);
-        jobs.set(jobId, { status: 'failed', error: err.message });
+        let userMsg = err.message || 'Failed to download YouTube video.';
+        if (userMsg.includes('Sign in to confirm') || userMsg.includes('429')) {
+          userMsg = 'YouTube is currently rate-limiting automated server downloads for this link. Please upload your video file directly using the Upload Box.';
+        }
+        jobs.set(jobId, { status: 'failed', error: userMsg });
       }
     })();
   } catch (err) {
