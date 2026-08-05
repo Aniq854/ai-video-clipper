@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 
 export default function useJobStatus(jobId) {
-  const [job, setJob] = useState(null);
+  const [job, setJob] = useState({ status: 'processing', progress: 10 });
   const [clips, setClips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -14,20 +14,26 @@ export default function useJobStatus(jobId) {
 
     let interval;
     let isMounted = true;
+    let consecutiveFailures = 0;
 
     const fetchStatus = async () => {
       try {
         const jobData = await api.getJobStatus(jobId);
         if (!isMounted) return;
 
-        if (jobData.status === 'done') {
-          const clipsData = await api.getJobClips(jobId);
-          if (!isMounted) return;
+        consecutiveFailures = 0;
 
-          setJob(jobData);
-          setClips(clipsData);
-          setLoading(false);
-          if (interval) clearInterval(interval);
+        if (jobData.status === 'done') {
+          try {
+            const clipsData = await api.getJobClips(jobId);
+            if (!isMounted) return;
+            setJob(jobData);
+            setClips(clipsData);
+            setLoading(false);
+            if (interval) clearInterval(interval);
+          } catch (clipErr) {
+            console.warn('Clips fetch retry:', clipErr.message);
+          }
         } else if (jobData.status === 'failed') {
           setJob(jobData);
           setError(jobData.error || 'Video processing failed.');
@@ -39,10 +45,14 @@ export default function useJobStatus(jobId) {
         }
       } catch (err) {
         if (!isMounted) return;
-        console.error('Failed to fetch job status:', err);
-        setError('Failed to fetch job status. Make sure the backend server is running.');
-        setLoading(false);
-        if (interval) clearInterval(interval);
+        consecutiveFailures++;
+        console.warn(`Job status poll warning (${consecutiveFailures}/10):`, err.message);
+
+        if (consecutiveFailures >= 10) {
+          setError('Failed to fetch job status. Make sure the backend server is running.');
+          setLoading(false);
+          if (interval) clearInterval(interval);
+        }
       }
     };
 
