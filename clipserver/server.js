@@ -555,6 +555,73 @@ function extractYoutubeId(url) {
   return match && match[2].length === 11 ? match[2] : null;
 }
 
+// Chunked Upload Store (bypasses Render 30s timeout on 50MB+ files)
+const chunkStorage = new Map();
+
+app.post('/api/upload/chunk', localUpload.single('chunk'), async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, duration, aspectRatio } = req.body;
+    if (!uploadId || !req.file) {
+      return res.status(400).json({ error: 'Missing chunk parameters' });
+    }
+
+    if (!chunkStorage.has(uploadId)) {
+      chunkStorage.set(uploadId, []);
+    }
+
+    const chunks = chunkStorage.get(uploadId);
+    chunks[parseInt(chunkIndex)] = req.file.path;
+
+    const total = parseInt(totalChunks);
+    let receivedCount = 0;
+    for (let i = 0; i < total; i++) {
+      if (chunks[i]) receivedCount++;
+    }
+
+    if (receivedCount === total) {
+      const jobId = `job_${uuidv4().substring(0, 8)}`;
+      const finalPath = path.join(TEMP_DIR, `${jobId}_input.mp4`);
+      const writeStream = fs.createWriteStream(finalPath);
+
+      for (let i = 0; i < total; i++) {
+        const chunkPath = chunks[i];
+        if (chunkPath && fs.existsSync(chunkPath)) {
+          const buffer = fs.readFileSync(chunkPath);
+          writeStream.write(buffer);
+          try { fs.unlinkSync(chunkPath); } catch (e) {}
+        }
+      }
+      writeStream.end();
+      chunkStorage.delete(uploadId);
+
+      const durationOption = parseInt(duration) || 30;
+      const selectedAspectRatio = aspectRatio || '9:16';
+
+      jobs.set(jobId, {
+        id: jobId,
+        status: 'processing',
+        progress: 30,
+        durationOption,
+        aspectRatio: selectedAspectRatio,
+        videoPath: finalPath,
+        createdAt: new Date()
+      });
+
+      res.status(202).json({ jobId, status: 'processing', complete: true });
+
+      processJobInMemory(jobId).catch(err => {
+        console.error(`Job ${jobId} failed:`, err);
+        jobs.set(jobId, { status: 'failed', error: err.message });
+      });
+    } else {
+      res.json({ uploadId, chunkIndex, progress: Math.round((receivedCount / total) * 100), complete: false });
+    }
+  } catch (err) {
+    console.error('Chunk upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/upload - Handle video upload & start background job
 app.post('/api/upload', localUpload.single('video'), async (req, res) => {
   try {
