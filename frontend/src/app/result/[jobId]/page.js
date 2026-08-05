@@ -14,10 +14,18 @@ export default function ResultPage() {
 
   if (error) {
     return (
-      <div className="card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-        <h2 style={{ color: '#f87171', marginBottom: '1rem' }}>Oops, something went wrong.</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>{error}</p>
-        <button className="btn-secondary" onClick={() => router.push('/')}>Go Back Home</button>
+      <div className="card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', maxWidth: '650px', margin: '0 auto' }}>
+        <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⚠️</div>
+        <h2 style={{ color: '#f87171', marginBottom: '1rem' }}>Video Processing Notice</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '2rem' }}>{error}</p>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button className="btn-primary" onClick={() => router.push('/')}>
+            📁 Upload Local Video File (Fast 3s Cut)
+          </button>
+          <button className="btn-secondary" onClick={() => router.push('/')}>
+            Go Back Home
+          </button>
+        </div>
       </div>
     );
   }
