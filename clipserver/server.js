@@ -799,8 +799,8 @@ app.post('/api/youtube', async (req, res) => {
 
     (async () => {
       try {
-        console.log(`[Job ${jobId}] Downloading YouTube: ${youtubeUrl}`);
-        await downloadYoutubeWithFallback(youtubeUrl, downloadPath);
+        console.log(`[Job ${jobId}] Downloading YouTube Section (0-180s): ${youtubeUrl}`);
+        await downloadYoutubeWithFallback(youtubeUrl, downloadPath, 0, 180);
 
         if (!fs.existsSync(downloadPath)) throw new Error('Downloaded file not found');
 
