@@ -81,10 +81,10 @@ if (fs.existsSync(localYtdlp)) {
 // Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
   const clients = [
-    'android,web',
-    'ios,mweb',
-    'web_creator,android',
-    'tv,android'
+    'android',
+    'ios',
+    'mweb',
+    'tv'
   ];
 
   let lastErr = null;
