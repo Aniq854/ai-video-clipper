@@ -47,11 +47,23 @@ const api = {
       formData.append('duration', duration);
       formData.append('aspectRatio', aspectRatio);
 
-      const response = await apiClient.post('/api/upload/chunk', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Send chunk with up to 3 automatic retries if network drops
+      let attempts = 0;
+      let response = null;
+      while (attempts < 3) {
+        try {
+          response = await apiClient.post('/api/upload/chunk', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          break;
+        } catch (err) {
+          attempts++;
+          if (attempts >= 3) throw err;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
 
       finalData = response.data;
       if (onProgress) {
