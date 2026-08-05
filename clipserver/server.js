@@ -118,17 +118,17 @@ ensureLatestYtdlp().catch(console.warn);
 // Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
   const clients = [
-    'web_creator',
-    'android_creator',
+    'android',
+    'ios',
     'mweb',
-    'tv_embedded',
-    'ios'
+    'web'
   ];
 
   let lastErr = null;
   const nodeBin = process.execPath;
   const cookiesPath = path.join(__dirname, 'cookies.txt');
   const cookiesArg = fs.existsSync(cookiesPath) ? `--cookies "${cookiesPath}"` : '';
+  const ffmpegArg = `--ffmpeg-location "${ffmpegInstaller.path}"`;
 
   for (const client of clients) {
     try {
@@ -145,7 +145,6 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
       }
 
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-      const ffmpegArg = `--ffmpeg-location "${ffmpegInstaller.path}"`;
       const cmd = `"${ytdlpPath}" ${cookiesArg} ${ffmpegArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
 
       await new Promise((resolve, reject) => {
@@ -165,15 +164,20 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
     }
   }
 
-  // Final fallback attempt: standard download
+  // Final fallback attempt: standard download with section
   try {
     try {
       if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
       if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
     } catch (e) {}
 
-    console.log(`🎬 Final attempt: Standard yt-dlp download...`);
-    const cmd = `"${ytdlpPath}" ${cookiesArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates -f "best[height<=720][ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+    let sectionArg = '';
+    if (startSec !== null && endSec !== null) {
+      sectionArg = `--download-sections "*${startSec}-${endSec}"`;
+    }
+
+    console.log(`🎬 Final attempt: Standard yt-dlp download with section...`);
+    const cmd = `"${ytdlpPath}" ${cookiesArg} ${ffmpegArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} -f "best[height<=720][ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
     await new Promise((resolve, reject) => {
       exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
         if (err) reject(new Error(stderr || err.message));
@@ -182,6 +186,7 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
     });
 
     if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+      console.log(`✅ YouTube final fallback download successful! File size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)}MB`);
       return true;
     }
   } catch (err) {
