@@ -144,8 +144,8 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
         sectionArg = `--download-sections "*${startSec}-${endSec}"`;
       }
 
-      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-      const cmd = `"${ytdlpPath}" ${cookiesArg} ${ffmpegArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+      const userAgent = 'com.google.android.youtube/19.09.37 (Linux; U; Android 11; US) gzip';
+      const cmd = `"${ytdlpPath}" ${cookiesArg} ${ffmpegArg} --force-ipv4 --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
 
       await new Promise((resolve, reject) => {
         exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
