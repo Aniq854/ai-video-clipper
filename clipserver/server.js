@@ -78,6 +78,66 @@ if (fs.existsSync(localYtdlp)) {
   }
 }
 
+// Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
+async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
+  const clients = [
+    'android,web',
+    'ios,mweb',
+    'web_creator,android',
+    'tv,android'
+  ];
+
+  let lastErr = null;
+
+  for (const client of clients) {
+    try {
+      console.log(`🎬 Downloading YouTube [${client}]: ${youtubeUrl}`);
+      let sectionArg = '';
+      if (startSec !== null && endSec !== null) {
+        sectionArg = `--download-sections "*${startSec}-${endSec}"`;
+      }
+
+      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+      const cmd = `"${ytdlpPath}" --force-ipv4 --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+
+      await new Promise((resolve, reject) => {
+        exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
+          if (err) reject(new Error(stderr || err.message));
+          else resolve();
+        });
+      });
+
+      if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+        console.log(`✅ YouTube download successful with player client [${client}]! File size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)}MB`);
+        return true;
+      }
+    } catch (err) {
+      console.warn(`⚠️ YouTube client [${client}] failed: ${err.message}. Retrying next client...`);
+      lastErr = err;
+    }
+  }
+
+  // Final fallback attempt: standard download without client args
+  try {
+    console.log(`🎬 Final attempt: Standard yt-dlp download...`);
+    const cmd = `"${ytdlpPath}" --force-ipv4 --no-check-certificates -f "best[height<=720][ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+    await new Promise((resolve, reject) => {
+      exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      });
+    });
+
+    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+      return true;
+    }
+  } catch (err) {
+    lastErr = err;
+  }
+
+  throw lastErr || new Error('Failed to download YouTube video with all fallbacks');
+}
+
 // Health check
 app.get('/', (req, res) => {
   res.json({ status: 'ClipAI Server running', version: '1.0.0' });
@@ -687,13 +747,7 @@ app.post('/api/youtube', async (req, res) => {
     (async () => {
       try {
         console.log(`[Job ${jobId}] Downloading YouTube: ${youtubeUrl}`);
-        const ytCmd = `"${ytdlpPath}" --force-ipv4 --no-check-certificates -f "best[height<=720][ext=mp4]/best" -o "${downloadPath}" "${youtubeUrl}"`;
-        await new Promise((resolve, reject) => {
-          exec(ytCmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
-            if (err) reject(new Error(`yt-dlp download failed: ${stderr || err.message}`));
-            else resolve();
-          });
-        });
+        await downloadYoutubeWithFallback(youtubeUrl, downloadPath);
 
         if (!fs.existsSync(downloadPath)) throw new Error('Downloaded file not found');
 
