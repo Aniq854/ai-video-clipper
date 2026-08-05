@@ -144,7 +144,7 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
       }
 
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-      const cmd = `"${ytdlpPath}" ${cookiesArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --extractor-args "youtube:player_skip=webpage,configs,js" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+      const cmd = `"${ytdlpPath}" ${cookiesArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
 
       await new Promise((resolve, reject) => {
         exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
@@ -853,11 +853,21 @@ async function processJobInMemory(jobId) {
     const requestedDuration = job.durationOption || 30;
     const clipDuration = Math.min(requestedDuration, Math.floor(totalDuration));
 
-    // Determine number of clips based on video length
+    // Determine number of clips dynamically based on video duration
     let numClips = 3;
-    if (totalDuration > 600) numClips = 5;
-    else if (totalDuration > 300) numClips = 4;
-    else if (totalDuration < 45) numClips = 1;
+    if (totalDuration >= 1800) {
+      numClips = Math.min(12, Math.floor(totalDuration / 180)); // ~10-12 clips for 30m+
+    } else if (totalDuration >= 900) {
+      numClips = Math.min(8, Math.floor(totalDuration / 135));  // ~6-8 clips for 15m+
+    } else if (totalDuration >= 300) {
+      numClips = Math.min(5, Math.floor(totalDuration / 90));   // ~4-5 clips for 5m+
+    } else if (totalDuration >= 90) {
+      numClips = Math.min(3, Math.floor(totalDuration / 45));   // ~2-3 clips for 1.5m+
+    } else if (totalDuration >= 30) {
+      numClips = 2;
+    } else {
+      numClips = 1;
+    }
 
     const startTimes = [];
     if (numClips === 1) {
