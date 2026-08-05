@@ -82,10 +82,10 @@ if (fs.existsSync(localYtdlp)) {
 // Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
   const clients = [
-    'android',
     'tv_embedded',
     'ios',
-    'mweb'
+    'mweb',
+    'android'
   ];
 
   let lastErr = null;
@@ -93,6 +93,12 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
 
   for (const client of clients) {
     try {
+      // Clean up residual files from previous attempts
+      try {
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
+      } catch (e) {}
+
       console.log(`🎬 Downloading YouTube [${client}]: ${youtubeUrl}`);
       let sectionArg = '';
       if (startSec !== null && endSec !== null) {
@@ -121,6 +127,11 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
 
   // Final fallback attempt: standard download
   try {
+    try {
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+      if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
+    } catch (e) {}
+
     console.log(`🎬 Final attempt: Standard yt-dlp download...`);
     const cmd = `"${ytdlpPath}" --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates -f "best[height<=720][ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
     await new Promise((resolve, reject) => {
