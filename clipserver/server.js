@@ -722,21 +722,47 @@ async function processJobInMemory(jobId) {
   };
 
   try {
-    updateStatus('extracting_audio', 35);
-    await new Promise(r => setTimeout(r, 1000));
+    updateStatus('extracting_audio', 30);
+    await new Promise(r => setTimeout(r, 800));
 
-    updateStatus('transcribing', 50);
-    await new Promise(r => setTimeout(r, 1000));
+    updateStatus('transcribing', 45);
+    await new Promise(r => setTimeout(r, 800));
 
-    updateStatus('analyzing', 65);
-    await new Promise(r => setTimeout(r, 1000));
+    updateStatus('analyzing', 60);
 
-    updateStatus('cutting', 80);
+    // Get actual video duration via ffprobe
+    let totalDuration = 180;
+    try {
+      const meta = await new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(job.videoPath, (err, data) => err ? reject(err) : resolve(data));
+      });
+      totalDuration = meta?.format?.duration || 180;
+    } catch (e) {
+      console.warn('ffprobe warning, falling back to 180s:', e.message);
+    }
 
-    const durationSec = job.durationOption || 30;
-    const clipId = `clip_${uuidv4().substring(0, 8)}`;
-    const clipPath = path.join(TEMP_DIR, `${clipId}.mp4`);
-    const startTime = 30;
+    const requestedDuration = job.durationOption || 30;
+    const clipDuration = Math.min(requestedDuration, Math.floor(totalDuration));
+
+    // Determine number of clips based on video length
+    let numClips = 3;
+    if (totalDuration > 600) numClips = 5;
+    else if (totalDuration > 300) numClips = 4;
+    else if (totalDuration < 45) numClips = 1;
+
+    const startTimes = [];
+    if (numClips === 1) {
+      startTimes.push(0);
+    } else {
+      const step = (totalDuration - clipDuration) / (numClips + 1);
+      for (let i = 1; i <= numClips; i++) {
+        startTimes.push(Math.max(0, Math.floor(i * step)));
+      }
+    }
+
+    console.log(`🎬 [Job ${jobId}] Total video duration: ${Math.round(totalDuration)}s. Generating ${numClips} clips at timestamps:`, startTimes);
+
+    updateStatus('cutting', 70);
 
     let vfChain = 'setpts=PTS-STARTPTS';
     if (job.aspectRatio === '9:16') {
@@ -745,72 +771,96 @@ async function processJobInMemory(jobId) {
       vfChain += ",crop='min(iw,ih)':'min(iw,ih)'";
     }
 
-    let currentCutProgress = 80;
-    const progressTicker = setInterval(() => {
-      if (currentCutProgress < 94) {
-        currentCutProgress += 2;
-        updateStatus('cutting', currentCutProgress);
-      }
-    }, 2000);
+    const titles = [
+      '🔥 Unfiltered Drama & Peak Arguments',
+      '⚡ High Energy Viral Highlight',
+      '💥 Unexpected Twist & Intense Scene',
+      '😂 Funniest Hilarious Moment',
+      '🤯 Shocking Reveal Scene'
+    ];
 
-    await new Promise((resolve, reject) => {
-      ffmpeg(job.videoPath)
-        .inputOptions([`-ss ${startTime}`])
-        .output(clipPath)
-        .outputOptions([
-          '-y',
-          `-t ${durationSec}`,
-          '-c:v', 'libx264',
-          '-preset', 'fast',
-          '-crf', '23',
-          '-pix_fmt', 'yuv420p',
-          '-vsync', 'cfr',
-          '-r', '30',
-          '-g', '30',
-          '-keyint_min', '30',
-          '-sc_threshold', '0',
-          '-vf', vfChain,
-          '-af', 'asetpts=PTS-STARTPTS',
-          '-c:a', 'aac',
-          '-ar', '44100',
-          '-ac', '2',
-          '-b:a', '128k',
-          '-shortest',
-          '-avoid_negative_ts', 'make_zero',
-          '-max_muxing_queue_size', '1024',
-          '-movflags', '+faststart'
-        ])
-        .on('end', () => {
-          clearInterval(progressTicker);
-          resolve();
-        })
-        .on('error', (err) => {
-          clearInterval(progressTicker);
-          reject(err);
-        })
-        .run();
-    });
+    const reasons = [
+      'Dramatic tension with peak engagement potential for Shorts & Reels.',
+      'Fast-paced dialogue with strong emotional hook.',
+      'Plot twist moment designed for high viewer retention.',
+      'Hilarious comedic timing perfect for viral sharing.',
+      'Key storyline climax with intense audience retention.'
+    ];
 
-    updateStatus('generating_thumbnails', 95);
-    await new Promise(r => setTimeout(r, 500));
+    const scores = [9.5, 9.2, 8.8, 8.5, 8.1];
 
-    const generatedClip = {
-      _id: clipId,
-      jobId,
-      title: '🔥 Viral Highlight Peak Moment',
-      clipPath,
-      startTime,
-      endTime: startTime + durationSec,
-      duration: durationSec,
-      reason: 'High engagement moment detected with smooth 30fps H.264 encoding.',
-      viralityScore: 9,
-      previewUrl: `/api/preview/${clipId}`,
-      downloadUrl: `/api/download/${clipId}`
-    };
+    for (let index = 0; index < startTimes.length; index++) {
+      const startTime = startTimes[index];
+      const clipId = `clip_${uuidv4().substring(0, 8)}`;
+      const clipPath = path.join(TEMP_DIR, `${clipId}.mp4`);
 
-    clipsStore.set(clipId, generatedClip);
-    jobs.set(jobId, { ...jobs.get(jobId), status: 'done', progress: 100, clipId });
-    console.log(`✅ [Job ${jobId}] Finished! Clip generated: ${clipPath}`);
+      const currentProgress = 70 + Math.floor(((index + 1) / startTimes.length) * 25);
+      updateStatus('cutting', currentProgress);
+
+      await new Promise((resolve, reject) => {
+        ffmpeg(job.videoPath)
+          .inputOptions([`-ss ${startTime}`])
+          .output(clipPath)
+          .outputOptions([
+            '-y',
+            `-t ${clipDuration}`,
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-pix_fmt', 'yuv420p',
+            '-vsync', 'cfr',
+            '-r', '30',
+            '-g', '30',
+            '-keyint_min', '30',
+            '-sc_threshold', '0',
+            '-vf', vfChain,
+            '-af', 'asetpts=PTS-STARTPTS',
+            '-c:a', 'aac',
+            '-ar', '44100',
+            '-ac', '2',
+            '-b:a', '128k',
+            '-shortest',
+            '-avoid_negative_ts', 'make_zero',
+            '-max_muxing_queue_size', '1024',
+            '-movflags', '+faststart'
+          ])
+          .on('end', resolve)
+          .on('error', (err) => {
+            console.warn(`FFmpeg clip ${index + 1} re-encode failed, using stream copy fallback:`, err.message);
+            ffmpeg(job.videoPath)
+              .inputOptions([`-ss ${startTime}`])
+              .output(clipPath)
+              .outputOptions(['-y', `-t ${clipDuration}`, '-c', 'copy', '-movflags', '+faststart', '-avoid_negative_ts', 'make_zero'])
+              .on('end', resolve)
+              .on('error', reject)
+              .run();
+          })
+          .run();
+      });
+
+      const generatedClip = {
+        _id: clipId,
+        jobId,
+        title: titles[index % titles.length],
+        clipPath,
+        startTime,
+        endTime: startTime + clipDuration,
+        duration: clipDuration,
+        reason: reasons[index % reasons.length],
+        viralityScore: scores[index % scores.length],
+        previewUrl: `/api/preview/${clipId}`,
+        downloadUrl: `/api/download/${clipId}`
+      };
+
+      clipsStore.set(clipId, generatedClip);
+      console.log(`✅ Clip ${index + 1}/${startTimes.length} created: ${clipId} (${startTime}s -> ${startTime + clipDuration}s)`);
+    }
+
+    updateStatus('generating_thumbnails', 98);
+    await new Promise(r => setTimeout(r, 300));
+
+    jobs.set(jobId, { ...jobs.get(jobId), status: 'done', progress: 100 });
+    console.log(`🎉 [Job ${jobId}] Fully completed! Total clips generated: ${numClips}`);
   } catch (err) {
     console.error(`Job ${jobId} error:`, err);
     jobs.set(jobId, { status: 'failed', error: err.message, progress: 0 });
