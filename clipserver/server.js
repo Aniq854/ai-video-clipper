@@ -57,27 +57,63 @@ app.get('/api/logs', (req, res) => {
   res.send(serverLogs.join('\n'));
 });
 
-// Check if local yt-dlp is available, else try global or fallback
 const isWin = require('os').platform() === 'win32';
 const localYtdlp = path.join(__dirname, 'bin', isWin ? 'yt-dlp.exe' : 'yt-dlp');
-let ytdlpPath = 'yt-dlp';
+let ytdlpPath = fs.existsSync(localYtdlp) ? localYtdlp : 'yt-dlp';
 
-if (fs.existsSync(localYtdlp)) {
-  ytdlpPath = localYtdlp;
-  console.log('✅ Using local yt-dlp binary:', ytdlpPath);
-} else {
+// Automatically download latest official yt-dlp release from GitHub if missing or outdated
+async function ensureLatestYtdlp() {
   try {
-    execSync('yt-dlp --version', { stdio: 'pipe', env: execEnv });
-    console.log('✅ System yt-dlp found');
-  } catch {
-    try {
-      execSync('python3 -m pip install yt-dlp', { stdio: 'pipe', env: execEnv });
-      console.log('✅ yt-dlp installed via pip');
-    } catch {
-      console.warn('⚠️ yt-dlp not available on system, using fallback');
+    const binDir = path.join(__dirname, 'bin');
+    if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
+
+    const targetFile = path.join(binDir, isWin ? 'yt-dlp.exe' : 'yt-dlp');
+    const downloadUrl = isWin
+      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+
+    let needDownload = true;
+    if (fs.existsSync(targetFile)) {
+      const stat = fs.statSync(targetFile);
+      const ageHours = (Date.now() - stat.mtimeMs) / (1000 * 60 * 60);
+      if (ageHours < 48 && stat.size > 5000000) {
+        needDownload = false;
+      }
     }
+
+    if (needDownload) {
+      console.log(`📥 Updating yt-dlp binary to latest GitHub release...`);
+      const https = require('https');
+      const fetchBinary = (url) => new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            fetchBinary(res.headers.location).then(resolve).catch(reject);
+          } else if (res.statusCode === 200) {
+            const stream = fs.createWriteStream(targetFile);
+            res.pipe(stream);
+            stream.on('finish', () => { stream.close(); resolve(); });
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        }).on('error', reject);
+      });
+
+      await fetchBinary(downloadUrl);
+      if (!isWin) {
+        try { fs.chmodSync(targetFile, 0o755); } catch (e) {}
+      }
+      ytdlpPath = targetFile;
+      console.log('✅ yt-dlp updated successfully to latest release!');
+    } else {
+      ytdlpPath = targetFile;
+    }
+  } catch (err) {
+    console.warn('⚠️ Auto-update yt-dlp warning:', err.message);
   }
 }
+
+// Trigger yt-dlp update in background on server startup
+ensureLatestYtdlp().catch(console.warn);
 
 // Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
