@@ -118,10 +118,11 @@ ensureLatestYtdlp().catch(console.warn);
 // Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
   const clients = [
-    'android_vr',
-    'ios',
+    'web_creator',
+    'android_creator',
     'mweb',
-    'tv_embedded'
+    'tv_embedded',
+    'ios'
   ];
 
   let lastErr = null;
