@@ -67,6 +67,14 @@ export default function ClipCard({ clip }) {
 
   const handleDownload = async () => {
     if (downloading || !downloadUrl) return;
+
+    // Trigger Adsterra Popunder / Direct Link Ad
+    try {
+      if (typeof window !== 'undefined') {
+        window.open('https://pl30711070.effectivecpmnetwork.com/8b/e9/2e/8be92e7aac2c6f089c73f5a55de9bee9.js', '_blank');
+      }
+    } catch (e) {}
+
     setDownloading(true);
     try {
       // Fetch the actual server-side FFmpeg-cut MP4 as a binary blob
