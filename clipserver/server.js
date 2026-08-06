@@ -613,7 +613,15 @@ app.post('/api/trim', localUpload.single('video'), async (req, res) => {
   const endTime = parseFloat(req.query.end) || 30;
   const duration = endTime - startTime;
   const clipId = `local_${uuidv4().substring(0, 8)}`;
-  const inputPath = req.file ? req.file.path : path.join(TEMP_DIR, `${clipId}_input.mp4`);
+  let inputPath = req.file ? req.file.path : path.join(TEMP_DIR, `${clipId}_input.mp4`);
+  if (req.file) {
+    const ext = path.extname(req.file.originalname) || '.mp4';
+    const newPath = `${req.file.path}${ext.startsWith('.') ? ext : '.' + ext}`;
+    try {
+      fs.renameSync(req.file.path, newPath);
+      inputPath = newPath;
+    } catch (e) {}
+  }
   const outputPath = path.join(TEMP_DIR, `${clipId}_output.mp4`);
 
   try {
@@ -790,7 +798,15 @@ app.post('/api/upload', localUpload.single('video'), async (req, res) => {
     const jobId = `job_${uuidv4().substring(0, 8)}`;
     const durationOption = parseInt(req.body.duration) || 30;
     const aspectRatio = req.body.aspectRatio || '9:16';
-    const videoPath = req.file.path;
+    
+    // Ensure file has .mp4 extension so FFmpeg/ffprobe can infer container format
+    const ext = path.extname(req.file.originalname) || '.mp4';
+    const videoPath = `${req.file.path}${ext.startsWith('.') ? ext : '.' + ext}`;
+    try {
+      fs.renameSync(req.file.path, videoPath);
+    } catch (e) {
+      console.warn('File rename error, using fallback:', e.message);
+    }
 
     jobs.set(jobId, {
       id: jobId,
@@ -798,7 +814,7 @@ app.post('/api/upload', localUpload.single('video'), async (req, res) => {
       progress: 30,
       durationOption,
       aspectRatio,
-      videoPath,
+      videoPath: fs.existsSync(videoPath) ? videoPath : req.file.path,
       createdAt: new Date()
     });
 
