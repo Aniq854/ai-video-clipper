@@ -305,3 +305,35 @@ body, html {
   .hero h1 { font-size: 2.5rem; }
   .clips-grid { grid-template-columns: 1fr; }
 }
+
+/* Header Ads Container */
+.header-ads-container {
+  width: 100%;
+  margin: 1.5rem 0;
+  display: flex;
+  justify-content: center;
+}
+.ads-flex-layout {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.ad-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ad-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #71717a;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+}
+@media (max-width: 1520px) {
+  .desktop-only {
+    display: none;
+  }
+}

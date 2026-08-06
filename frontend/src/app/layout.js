@@ -1,4 +1,5 @@
 import './globals.css';
+import HeaderAds from '../components/HeaderAds';
 
 export const metadata = {
   title: 'ClipAI — AI Video Clipping Tool',
@@ -14,6 +15,7 @@ export default function RootLayout({ children }) {
             <a href="/" className="navbar-brand gradient-text">ClipAI</a>
           </div>
         </nav>
+        <HeaderAds />
         <main className="container">
           {children}
         </main>
