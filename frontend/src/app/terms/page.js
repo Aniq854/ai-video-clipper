@@ -27,26 +27,35 @@ export default function TermsPage() {
         <h2>3. User Responsibilities</h2>
         <p>By using Snipr AI, you agree that:</p>
         <ul>
-          <li>You own or have the legal right to upload and process any video file you submit to the Service.</li>
-          <li>You will not upload content that is illegal, defamatory, obscene, threatening, or violates any third-party intellectual property rights.</li>
+          <li>You own or have obtained all necessary permissions, licenses, and rights to upload, process, and extract clips from any video content you submit to the Service.</li>
+          <li>You will not upload content that is illegal, defamatory, obscene, threatening, or violates any third-party intellectual property or copyright rights.</li>
           <li>You will not attempt to circumvent, disable, or interfere with the security features of the Service.</li>
           <li>You will not use the Service for any automated bulk processing without prior written permission.</li>
-          <li>You are solely responsible for ensuring your use of generated clips complies with the terms of service of any platform (TikTok, YouTube, Instagram, etc.) where you post them.</li>
+          <li>You are solely responsible for ensuring your use of generated clips complies with copyright laws and the terms of service of any platform (TikTok, YouTube, Instagram, X, etc.) where you post them.</li>
         </ul>
 
-        <h2>4. Intellectual Property</h2>
-        <p>You retain full ownership of any video content you upload to Snipr AI and any clips generated from your content. Snipr AI does not claim any ownership rights over your content. The Snipr AI name, logo, and underlying technology are the intellectual property of the Snipr AI team.</p>
+        <h2>4. Copyright Disclaimer & Sole User Liability</h2>
+        <p><strong>Copyright Responsibility Lies Entirely with the User:</strong> Snipr AI acts solely as a technical automated utility and video processing service. We do not claim ownership of, review, monitor, or endorse any user-uploaded content or generated clips.</p>
+        <p>By uploading any video to Snipr AI, you explicitly acknowledge and warrant that:</p>
+        <ul>
+          <li>You are 100% legally responsible for any copyright claims, DMCA takedown notices, trademark disputes, or legal liabilities arising from the video content you upload or the clips you generate and distribute.</li>
+          <li>Snipr AI, its owners, developers, and hosting providers assume <strong>zero liability</strong> for any copyright violations, strikes, or legal action resulting from user-generated clips or uploaded content.</li>
+          <li>You agree to fully indemnify, defend, and hold harmless Snipr AI and its operators against any claims, losses, damages, liabilities, and legal expenses (including attorney fees) resulting from your violation of third-party copyright or intellectual property rights.</li>
+        </ul>
 
-        <h2>5. Content Policy</h2>
+        <h2>5. Intellectual Property</h2>
+        <p>You retain full ownership of any video content you upload to Snipr AI and any clips generated from your content, provided you possess the original rights. Snipr AI does not claim any ownership rights over your content. The Snipr AI name, logo, and underlying application code are the intellectual property of the Snipr AI team.</p>
+
+        <h2>6. Content Policy</h2>
         <p>The following types of content are strictly prohibited on Snipr AI:</p>
         <ul>
           <li>Content that depicts or promotes illegal activities</li>
           <li>Sexually explicit or pornographic material</li>
           <li>Content that harasses, threatens, or demeans individuals</li>
-          <li>Content protected by copyright that you do not have rights to (e.g., commercial movies, music videos, TV shows)</li>
+          <li>Content protected by copyright that you do not have permission or legal license to use (e.g., commercial movies, TV shows, music videos)</li>
           <li>Deepfakes or synthetic media designed to deceive</li>
         </ul>
-        <p>We reserve the right to terminate access for users who violate this content policy.</p>
+        <p>We reserve the right to terminate access or block processing for any user who violates this content policy.</p>
 
         <h2>6. Service Availability</h2>
         <p>Snipr AI is provided on an "as is" and "as available" basis. We do not guarantee continuous, uninterrupted access to the Service. Our processing servers may experience downtime for maintenance or due to high demand. We are not liable for any losses caused by Service unavailability.</p>
