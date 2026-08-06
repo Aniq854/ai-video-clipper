@@ -1027,8 +1027,8 @@ async function processJobInMemory(jobId) {
         duration: clipDuration,
         reason: reasons[index % reasons.length],
         viralityScore: scores[index % scores.length],
-        previewUrl: r2Url || `/api/preview/${clipId}`,
-        downloadUrl: r2Url || `/api/download/${clipId}`
+        previewUrl: `/api/preview/${clipId}`,
+        downloadUrl: `/api/download/${clipId}`
       };
 
       clipsStore.set(clipId, generatedClip);
@@ -1063,27 +1063,27 @@ app.get('/api/jobs/:id/clips', (req, res) => {
 app.get('/api/preview/:clipId', (req, res) => {
   const clip = clipsStore.get(req.params.clipId);
   if (!clip) return res.status(404).json({ error: 'Clip preview not found' });
+  if (fs.existsSync(clip.clipPath)) {
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    return fs.createReadStream(clip.clipPath).pipe(res);
+  }
   if (clip.r2Url) return res.redirect(302, clip.r2Url);
-  if (!fs.existsSync(clip.clipPath)) return res.status(404).json({ error: 'Clip file not found on server' });
-  res.setHeader('Content-Type', 'video/mp4');
-  res.setHeader('Accept-Ranges', 'bytes');
-  fs.createReadStream(clip.clipPath).pipe(res);
+  return res.status(404).json({ error: 'Clip file not found on server' });
 });
 
 // GET /api/download/:clipId
 app.get('/api/download/:clipId', (req, res) => {
   const clip = clipsStore.get(req.params.clipId);
   if (!clip) return res.status(404).json({ error: 'Clip not found' });
-  // If clip is on Cloudflare R2, redirect to CDN URL for instant download
+  if (fs.existsSync(clip.clipPath)) {
+    return res.download(clip.clipPath, `viral_clip_${clip.duration}s.mp4`);
+  }
   if (clip.r2Url) {
     res.setHeader('Content-Disposition', `attachment; filename="viral_clip_${clip.duration}s.mp4"`);
     return res.redirect(302, clip.r2Url);
   }
-  // Fallback: serve from local temp file
-  if (!fs.existsSync(clip.clipPath)) {
-    return res.status(404).json({ error: 'Clip file not found. It may have expired — please regenerate.' });
-  }
-  res.download(clip.clipPath, `viral_clip_${clip.duration}s.mp4`);
+  return res.status(404).json({ error: 'Clip file not found. It may have expired — please regenerate.' });
 });
 
 // GET /api/download/thumbnail/:clipId
