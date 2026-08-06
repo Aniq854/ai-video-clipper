@@ -68,10 +68,16 @@ export default function ClipCard({ clip }) {
   const handleDownload = async () => {
     if (downloading || !downloadUrl) return;
 
-    // Trigger Adsterra Popunder / Direct Link Ad
+    // Trigger Adsterra Popunder Ad safely via script tag injection
     try {
-      if (typeof window !== 'undefined') {
-        window.open('https://pl30711070.effectivecpmnetwork.com/8b/e9/2e/8be92e7aac2c6f089c73f5a55de9bee9.js', '_blank');
+      if (typeof document !== 'undefined') {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = 'https://pl30711070.effectivecpmnetwork.com/8b/e9/2e/8be92e7aac2c6f089c73f5a55de9bee9.js';
+        document.body.appendChild(script);
+        setTimeout(() => {
+          try { document.body.removeChild(script); } catch (e) {}
+        }, 3000);
       }
     } catch (e) {}
 
