@@ -244,10 +244,15 @@ body, html {
 
 /* Navbar */
 .navbar {
-  padding: 1.5rem 0;
-  border-bottom: 1px solid #27272a;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   margin-bottom: 3rem;
-  background: #000000;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 .navbar-brand {
   font-size: 1.5rem;
@@ -255,6 +260,19 @@ body, html {
   color: #ffffff;
   text-decoration: none;
   letter-spacing: -0.02em;
+}
+.nav-link {
+  color: #71717a;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+.nav-link:hover, .nav-link.active {
+  color: #ffffff;
+  background: rgba(255,255,255,0.08);
 }
 
 /* Hero */
