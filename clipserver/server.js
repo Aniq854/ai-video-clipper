@@ -1047,22 +1047,25 @@ app.get('/api/jobs/:id/clips', (req, res) => {
 app.get('/api/preview/:clipId', (req, res) => {
   const clip = clipsStore.get(req.params.clipId);
   if (!clip) return res.status(404).json({ error: 'Clip preview not found' });
-  if (clip.r2Url) return res.redirect(clip.r2Url);
-  if (!fs.existsSync(clip.clipPath)) return res.status(404).json({ error: 'File missing' });
+  if (clip.r2Url) return res.redirect(302, clip.r2Url);
+  if (!fs.existsSync(clip.clipPath)) return res.status(404).json({ error: 'Clip file not found on server' });
   res.setHeader('Content-Type', 'video/mp4');
-  fs.createReadStream(clip.clipPath).pipe(res);
-});
-    return res.status(404).json({ error: 'Clip preview not found' });
-  }
-  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Accept-Ranges', 'bytes');
   fs.createReadStream(clip.clipPath).pipe(res);
 });
 
 // GET /api/download/:clipId
 app.get('/api/download/:clipId', (req, res) => {
   const clip = clipsStore.get(req.params.clipId);
-  if (!clip || !fs.existsSync(clip.clipPath)) {
-    return res.status(404).json({ error: 'Clip download not found' });
+  if (!clip) return res.status(404).json({ error: 'Clip not found' });
+  // If clip is on Cloudflare R2, redirect to CDN URL for instant download
+  if (clip.r2Url) {
+    res.setHeader('Content-Disposition', `attachment; filename="viral_clip_${clip.duration}s.mp4"`);
+    return res.redirect(302, clip.r2Url);
+  }
+  // Fallback: serve from local temp file
+  if (!fs.existsSync(clip.clipPath)) {
+    return res.status(404).json({ error: 'Clip file not found. It may have expired — please regenerate.' });
   }
   res.download(clip.clipPath, `viral_clip_${clip.duration}s.mp4`);
 });
