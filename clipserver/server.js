@@ -155,85 +155,65 @@ async function ensureLatestYtdlp() {
 // Trigger yt-dlp update in background on server startup
 ensureLatestYtdlp().catch(console.warn);
 
-// Robust YouTube Downloader with Client Rotation (bypasses 429 Too Many Requests & Bot Checks)
+// Robust YouTube Downloader (Optimized for Render 512MB RAM limit — avoids FFmpeg stream stitching OOM)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
-  const clients = [
-    'android',
-    'ios',
-    'mweb',
-    'web'
-  ];
-
+  const clients = ['mweb', 'android', 'web', 'ios'];
   let lastErr = null;
   const nodeBin = process.execPath;
   const cookiesPath = path.join(__dirname, 'cookies.txt');
   const cookiesArg = fs.existsSync(cookiesPath) ? `--cookies "${cookiesPath}"` : '';
-  const ffmpegArg = `--ffmpeg-location "${ffmpegInstaller.path}"`;
 
+  // Clean up residual files
+  try {
+    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
+  } catch (e) {}
+
+  // Strategy 1: Try single pre-muxed MP4 stream (format 18 / best mp4) - uses 5MB RAM, NO FFmpeg process during download
   for (const client of clients) {
     try {
-      // Clean up residual files from previous attempts
-      try {
-        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-        if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
-      } catch (e) {}
-
-      console.log(`🎬 Downloading YouTube [${client}]: ${youtubeUrl}`);
-      let sectionArg = '';
-      if (startSec !== null && endSec !== null) {
-        sectionArg = `--download-sections "*${startSec}-${endSec}"`;
-      }
-
+      console.log(`🎬 Downloading YouTube pre-muxed MP4 [client=${client}]: ${youtubeUrl}`);
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-      const cmd = `"${ytdlpPath}" ${cookiesArg} ${ffmpegArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+      // Format 18 is YouTube's standard pre-muxed 360p/480p H.264+AAC MP4 file — downloads directly via HTTP without FFmpeg
+      const cmd = `"${ytdlpPath}" ${cookiesArg} --force-ipv4 --geo-bypass --no-check-certificates --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "18/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
 
       await new Promise((resolve, reject) => {
-        exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
+        exec(cmd, { timeout: 120000, env: execEnv }, (err, stdout, stderr) => {
           if (err) reject(new Error(stderr || err.message));
           else resolve();
         });
       });
 
       if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-        console.log(`✅ YouTube download successful with player client [${client}]! File size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)}MB`);
+        console.log(`✅ YouTube download successful [client=${client}]! Size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)}MB`);
         return true;
       }
     } catch (err) {
-      console.warn(`⚠️ YouTube client [${client}] failed: ${err.message}. Retrying next client...`);
+      console.warn(`⚠️ YouTube client [${client}] failed: ${err.message?.substring(0, 150)}`);
       lastErr = err;
     }
   }
 
-  // Final fallback attempt: standard download with section
+  // Strategy 2: Standard yt-dlp fallback without client override
   try {
-    try {
-      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-      if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
-    } catch (e) {}
-
-    let sectionArg = '';
-    if (startSec !== null && endSec !== null) {
-      sectionArg = `--download-sections "*${startSec}-${endSec}"`;
-    }
-
-    console.log(`🎬 Final attempt: Standard yt-dlp download with section...`);
-    const cmd = `"${ytdlpPath}" ${cookiesArg} ${ffmpegArg} --js-runtimes "node:${nodeBin}" --geo-bypass --no-check-certificates ${sectionArg} -f "best[height<=720][ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+    console.log(`🎬 Strategy 2: Standard yt-dlp single-file download...`);
+    const cmd = `"${ytdlpPath}" ${cookiesArg} --force-ipv4 --geo-bypass --no-check-certificates -f "18/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
     await new Promise((resolve, reject) => {
-      exec(cmd, { timeout: 180000, env: execEnv }, (err, stdout, stderr) => {
+      exec(cmd, { timeout: 120000, env: execEnv }, (err, stdout, stderr) => {
         if (err) reject(new Error(stderr || err.message));
         else resolve();
       });
     });
 
     if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-      console.log(`✅ YouTube final fallback download successful! File size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`✅ YouTube Strategy 2 download successful! Size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)}MB`);
       return true;
     }
   } catch (err) {
     lastErr = err;
   }
 
-  throw lastErr || new Error('Failed to download YouTube video with all fallbacks');
+  throw lastErr || new Error('Failed to download YouTube video');
 }
 
 // Health check
