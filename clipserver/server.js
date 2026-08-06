@@ -155,13 +155,21 @@ async function ensureLatestYtdlp() {
 // Trigger yt-dlp update in background on server startup
 ensureLatestYtdlp().catch(console.warn);
 
+// Auto-load YouTube Cookies from environment variable if provided
+const cookiesPath = path.join(__dirname, 'cookies.txt');
+if (process.env.YOUTUBE_COOKIES) {
+  try {
+    fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES);
+    console.log('✅ Loaded YouTube cookies from process.env.YOUTUBE_COOKIES');
+  } catch (e) {}
+}
+
 // Robust YouTube Downloader (Optimized for Render 512MB RAM limit — avoids FFmpeg stream stitching OOM)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
   const clients = ['mweb', 'android', 'web', 'ios'];
   let lastErr = null;
   const nodeBin = process.execPath;
-  const cookiesPath = path.join(__dirname, 'cookies.txt');
-  const cookiesArg = fs.existsSync(cookiesPath) ? `--cookies "${cookiesPath}"` : '';
+  const cookiesArg = fs.existsSync(cookiesPath) && fs.statSync(cookiesPath).size > 100 ? `--cookies "${cookiesPath}"` : '';
   const jsRuntimeArg = `--js-runtimes "node:${nodeBin}"`;
 
   // Clean up residual files
