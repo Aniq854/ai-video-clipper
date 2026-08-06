@@ -1,6 +1,5 @@
 # Netscape HTTP Cookie File
-# https://curl.haxx.se/rfc/cookie_spec.html
-# This is a generated file! Do not edit.
-
-.youtube.com	TRUE	/	FALSE	1800000000	CONSENT	PENDING+999
-.youtube.com	TRUE	/	TRUE	1800000000	SOCS	CAESEwgDEgk2OTQ0NTIwMTQaAmVuIAEaBgiA0Z2wBg
+.youtube.com	TRUE	/	FALSE	2147483647	PREF	f4=40000&f6=40000000&hl=en
+.youtube.com	TRUE	/	TRUE	2147483647	GPS	1
+.youtube.com	TRUE	/	TRUE	2147483647	YSC	wQz_g7T-y-k
+.youtube.com	TRUE	/	TRUE	2147483647	VISITOR_INFO1_LIVE	c5X9z9K43l0
