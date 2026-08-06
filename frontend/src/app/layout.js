@@ -9,6 +9,9 @@ export const metadata = {
     shortcut: '/icon.png',
     apple: '/apple-icon.png',
   },
+  verification: {
+    google: '9NXg-dFTqTBZ1ug-Dx1ifzCUK1CCSfzoTKpOuhoM7-Y',
+  },
 };
 
 export default function RootLayout({ children }) {
