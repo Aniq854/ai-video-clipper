@@ -5,7 +5,7 @@ export const metadata = {
   description: 'Learn how to transform long-form podcasts and YouTube videos into viral TikToks, Instagram Reels, and YouTube Shorts.',
 };
 
-export const posts = [
+const posts = [
   {
     slug: 'how-to-turn-youtube-videos-into-tiktok-clips-2026-guide',
     title: 'How to Turn YouTube Videos into TikTok Clips & Shorts (2026 Ultimate Guide)',
@@ -46,13 +46,21 @@ export default function BlogIndex() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {posts.map((post) => (
-          <article 
-            key={post.slug} 
-            className="card" 
-            style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid #27272a' }}
+          <article
+            key={post.slug}
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '1rem',
+              padding: '2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              transition: 'border-color 0.2s',
+            }}
           >
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontSize: '0.85rem', color: '#71717a' }}>
-              <span style={{ background: '#27272a', color: '#ffffff', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.85rem', color: '#71717a' }}>
+              <span style={{ background: '#27272a', color: '#ffffff', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontWeight: '600', fontSize: '0.8rem' }}>
                 {post.category}
               </span>
               <span>{post.date}</span>
@@ -60,18 +68,32 @@ export default function BlogIndex() {
               <span>{post.readTime}</span>
             </div>
 
-            <h2 style={{ fontSize: '1.5rem', color: '#ffffff', lineHeight: 1.3 }}>
+            <h2 style={{ fontSize: '1.5rem', color: '#ffffff', lineHeight: 1.3, margin: 0 }}>
               <Link href={`/blog/${post.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 {post.title}
               </Link>
             </h2>
 
-            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1rem' }}>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '1rem', margin: 0 }}>
               {post.excerpt}
             </p>
 
             <div>
-              <Link href={`/blog/${post.slug}`} className="btn-secondary" style={{ display: 'inline-block', fontSize: '0.9rem', padding: '0.5rem 1.25rem' }}>
+              <Link
+                href={`/blog/${post.slug}`}
+                style={{
+                  display: 'inline-block',
+                  padding: '0.6rem 1.25rem',
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  borderRadius: '0.5rem',
+                  fontWeight: '600',
+                  fontSize: '0.9rem',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  transition: 'background 0.2s',
+                }}
+              >
                 Read Full Guide →
               </Link>
             </div>

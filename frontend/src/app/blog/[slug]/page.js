@@ -31,7 +31,7 @@ const articlesData = {
       <h2>Step 3: Automated Fast Clipping with Snipr AI</h2>
       <p>Instead of manually keyframing horizontal video footage in Premiere Pro or DaVinci Resolve, you can utilize <strong>Snipr AI</strong> to automate the process:</p>
       <ol>
-        <li>Upload your MP4 video file or paste your YouTube link into <a href="/">Snipr AI</a>.</li>
+        <li>Upload your MP4 video file into <a href="/">Snipr AI</a>.</li>
         <li>Select <strong>9:16 Vertical (TikTok/Reels/Shorts)</strong> as your target aspect ratio.</li>
         <li>Choose your target duration (30 seconds, 60 seconds, or 90 seconds).</li>
         <li>Click <strong>Generate Viral Clips</strong>. In 3 seconds, Snipr AI utilizes direct stream copying to generate cut clips with virality scores.</li>
@@ -51,7 +51,7 @@ const articlesData = {
   },
   'best-clip-length-reels-vs-shorts-vs-tiktok': {
     title: 'Best Clip Length for Instagram Reels vs YouTube Shorts vs TikTok (2026 Data)',
-    excerpt: 'Should your clips be 15s, 30s, or 60s? We analyze algorithm data across TikTok, Shorts, and Reels to find the optimal clip duration.',
+    description: 'Should your clips be 15s, 30s, or 60s? We analyze algorithm data across TikTok, Shorts, and Reels to find the optimal clip duration.',
     date: 'August 5, 2026',
     category: 'Algorithm Strategy',
     readTime: '5 min read',
@@ -78,12 +78,12 @@ const articlesData = {
       <p>TikTok incentivizes longer storytelling. While 15-second clips still go viral, 30-to-60-second clips receive higher monetization RPM rates and stronger search rankings within TikTok search.</p>
 
       <h2>How Snipr AI Automates Ideal Duration Selection</h2>
-      <p>With <a href="/">Snipr AI</a>, you don't have to manually trim clips to specific second marks. You can select pre-set duration buckets (30s, 60s, or 90s), and the AI automatically calculates the best scene cuts for maximum algorithmic retention.</p>
+      <p>With <a href="/">Snipr AI</a>, you do not have to manually trim clips to specific second marks. You can select pre-set duration buckets (30s, 60s, or 90s), and the AI automatically calculates the best scene cuts for maximum algorithmic retention.</p>
     `
   },
   'top-10-tools-to-repurpose-long-videos-2026': {
     title: 'Top 10 AI Video Clipping Tools to Repurpose Long Content in 2026',
-    excerpt: 'A comprehensive comparison of the best AI video clippers, comparing speed, features, free tiers, and output quality.',
+    description: 'A comprehensive comparison of the best AI video clippers, comparing speed, features, free tiers, and output quality.',
     date: 'August 4, 2026',
     category: 'Tool Comparison',
     readTime: '8 min read',
@@ -91,15 +91,20 @@ const articlesData = {
       <h2>Evaluating the Best AI Video Clipping Tools in 2026</h2>
       <p>Content creation has evolved. Podcasters, YouTubers, and marketing teams no longer spend hours scrubbing through timelines to find viral highlights. AI video clippers automatically analyze audio, detect facial expressions, and generate 9:16 vertical clips in minutes.</p>
 
-      <h2>1. Snipr AI (Best Free & Fastest Clipper)</h2>
-      <p><strong>Snipr AI</strong> stands out as the fastest AI video clipper available. Featuring 3-second processing speed via stream copying (`-c copy`), 3MB chunked uploads, and Cloudflare R2 CDN integration, Snipr AI offers instant clip generation with no sign-up required.</p>
+      <h2>1. Snipr AI — Best Free & Fastest Clipper</h2>
+      <p><strong>Snipr AI</strong> stands out as the fastest AI video clipper available. Featuring 3-second processing speed via stream copying, 3MB chunked uploads, and Cloudflare R2 CDN integration, Snipr AI offers instant clip generation with no sign-up required.</p>
       <ul>
         <li><strong>Pros:</strong> 3-second render speed, 100% free, no forced watermark, no sign-up needed.</li>
         <li><strong>Best For:</strong> Creators needing fast MP4 exports for Shorts and Reels.</li>
+        <li><strong>Try it:</strong> <a href="/">sniprai.vercel.app</a></li>
       </ul>
 
       <h2>2. Opus Clip</h2>
       <p>Opus Clip is a popular paid AI video clipping tool known for auto-captions and virality scores. It analyzes long podcasts and extracts short clips with animated subtitles.</p>
+      <ul>
+        <li><strong>Pros:</strong> Strong caption system, virality scoring.</li>
+        <li><strong>Cons:</strong> Expensive subscription, slow processing.</li>
+      </ul>
 
       <h2>3. Vizard.ai</h2>
       <p>Vizard specializes in corporate video repurposing, webinar trimming, and social media layout formatting.</p>
@@ -107,8 +112,11 @@ const articlesData = {
       <h2>4. Munch AI</h2>
       <p>Munch extracts trending topics from long videos using social analytics data to match clips with active search trends.</p>
 
+      <h2>5. Klap.app</h2>
+      <p>Klap uses AI to auto-reframe speakers in vertical video format with dynamic face-tracking cropping for podcasts and interviews.</p>
+
       <h2>Conclusion</h2>
-      <p>Whether you choose Opus Clip for heavy subtitle editing or <strong>Snipr AI</strong> for lightning-fast 3-second clip extraction, utilizing AI video clippers is essential for modern content growth.</p>
+      <p>Whether you choose Opus Clip for heavy subtitle editing or <strong>Snipr AI</strong> for lightning-fast 3-second clip extraction, utilizing AI video clippers is essential for modern content growth. <a href="/">Try Snipr AI free today</a>.</p>
     `
   }
 };
@@ -120,7 +128,7 @@ export async function generateMetadata({ params }) {
   }
   return {
     title: `${article.title} | Snipr AI`,
-    description: article.description || article.excerpt,
+    description: article.description,
   };
 }
 
@@ -129,10 +137,23 @@ export default function ArticlePage({ params }) {
 
   if (!article) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '4rem' }}>
-        <h2>Article Not Found</h2>
-        <p style={{ margin: '1.5rem 0' }}>The blog post you are looking for does not exist.</p>
-        <Link href="/blog" className="btn-primary">Back to Blog</Link>
+      <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+        <h2 style={{ color: '#ffffff', marginBottom: '1rem' }}>Article Not Found</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>The blog post you are looking for does not exist.</p>
+        <Link
+          href="/blog"
+          style={{
+            display: 'inline-block',
+            padding: '0.75rem 1.5rem',
+            background: '#ffffff',
+            color: '#000000',
+            textDecoration: 'none',
+            borderRadius: '0.5rem',
+            fontWeight: '700',
+          }}
+        >
+          ← Back to Blog
+        </Link>
       </div>
     );
   }
@@ -144,32 +165,61 @@ export default function ArticlePage({ params }) {
       </Link>
 
       <header style={{ marginBottom: '2.5rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontSize: '0.85rem', color: '#71717a', marginBottom: '1rem' }}>
-          <span style={{ background: '#27272a', color: '#ffffff', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontWeight: '600' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.85rem', color: '#71717a', marginBottom: '1rem' }}>
+          <span style={{ background: '#27272a', color: '#ffffff', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontWeight: '600', fontSize: '0.8rem' }}>
             {article.category}
           </span>
           <span>{article.date}</span>
           <span>•</span>
           <span>{article.readTime}</span>
         </div>
-        <h1 style={{ fontSize: '2.5rem', lineHeight: 1.2, color: '#ffffff', marginBottom: '1rem' }}>
+        <h1 style={{ fontSize: '2.25rem', lineHeight: 1.2, color: '#ffffff', marginBottom: '0' }}>
           {article.title}
         </h1>
       </header>
 
-      <div 
-        className="card article-content" 
-        style={{ padding: '2.5rem', lineHeight: 1.8, fontSize: '1.05rem', color: '#d4d4d8' }}
+      <div
+        className="article-content"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '1rem',
+          padding: '2.5rem',
+          lineHeight: 1.8,
+          fontSize: '1.05rem',
+          color: '#d4d4d8',
+        }}
         dangerouslySetInnerHTML={{ __html: article.content }}
       />
 
-      <div className="card" style={{ textAlign: 'center', padding: '3rem 2rem', marginTop: '3rem', background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <h3 style={{ fontSize: '1.75rem', color: '#ffffff', marginBottom: '0.75rem' }}>Ready to Turn Your Videos into Viral Shorts?</h3>
+      <div style={{
+        textAlign: 'center',
+        padding: '3rem 2rem',
+        marginTop: '3rem',
+        background: 'var(--surface)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '1rem',
+      }}>
+        <h3 style={{ fontSize: '1.75rem', color: '#ffffff', marginBottom: '0.75rem' }}>
+          Ready to Turn Your Videos into Viral Shorts?
+        </h3>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', maxWidth: '500px', margin: '0 auto 1.5rem auto' }}>
           Try Snipr AI for free. Upload your video file and export 9:16 vertical clips in 3 seconds flat.
         </p>
-        <Link href="/" className="btn-primary" style={{ padding: '0.85rem 2rem', fontSize: '1.1rem' }}>
-          Try Snipr AI Video Clipper Now →
+        <Link
+          href="/"
+          style={{
+            display: 'inline-block',
+            padding: '0.85rem 2rem',
+            background: '#ffffff',
+            color: '#000000',
+            textDecoration: 'none',
+            borderRadius: '0.75rem',
+            fontWeight: '700',
+            fontSize: '1.05rem',
+          }}
+        >
+          Try Snipr AI Now →
         </Link>
       </div>
     </article>
