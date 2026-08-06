@@ -175,7 +175,7 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
       console.log(`🎬 Downloading YouTube pre-muxed MP4 [client=${client}]: ${youtubeUrl}`);
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
       // Format 18 is YouTube's standard pre-muxed 360p/480p H.264+AAC MP4 file — downloads directly via HTTP without FFmpeg
-      const cmd = `"${ytdlpPath}" ${cookiesArg} --js-runtimes "node:${nodeBin}" --force-ipv4 --geo-bypass --no-check-certificates --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "18/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+      const cmd = `"${ytdlpPath}" ${cookiesArg} --js-runtimes "node" --force-ipv4 --geo-bypass --no-check-certificates --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "18/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
 
       await new Promise((resolve, reject) => {
         exec(cmd, { timeout: 120000, env: execEnv }, (err, stdout, stderr) => {
@@ -840,8 +840,9 @@ app.post('/api/youtube', async (req, res) => {
 
     (async () => {
       try {
-        console.log(`[Job ${jobId}] Downloading YouTube Section (0-180s): ${youtubeUrl}`);
-        await downloadYoutubeWithFallback(youtubeUrl, downloadPath, 0, 180);
+        const cleanYoutubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+        console.log(`[Job ${jobId}] Downloading YouTube Clean URL: ${cleanYoutubeUrl}`);
+        await downloadYoutubeWithFallback(cleanYoutubeUrl, downloadPath, 0, 180);
 
         if (!fs.existsSync(downloadPath)) throw new Error('Downloaded file not found');
 
