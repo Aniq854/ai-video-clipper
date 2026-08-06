@@ -426,3 +426,22 @@ body, html {
   transform: translateY(-2px);
 }
 
+/* Footer Links */
+.footer-link {
+  color: #52525b;
+  text-decoration: none;
+  font-size: '0.9rem';
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.footer-link:hover {
+  color: #ffffff;
+}
+
+/* Mobile Navbar */
+@media (max-width: 640px) {
+  .nav-link { display: none; }
+  .navbar .container { justify-content: center; }
+}
+
+
