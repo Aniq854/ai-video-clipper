@@ -157,7 +157,7 @@ ensureLatestYtdlp().catch(console.warn);
 
 // Robust YouTube Downloader (Optimized for Render 512MB RAM limit — avoids FFmpeg stream stitching OOM)
 async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = null, endSec = null) {
-  const clients = ['mweb', 'android', 'web', 'ios'];
+  const clients = ['tv_embedded', 'tv', 'web_creator', 'mweb', 'android', 'web', 'ios'];
   let lastErr = null;
   const nodeBin = process.execPath;
   const cookiesPath = path.join(__dirname, 'cookies.txt');
@@ -169,13 +169,13 @@ async function downloadYoutubeWithFallback(youtubeUrl, outputPath, startSec = nu
     if (fs.existsSync(`${outputPath}.part`)) fs.unlinkSync(`${outputPath}.part`);
   } catch (e) {}
 
-  // Strategy 1: Try single pre-muxed MP4 stream (format 18 / best mp4) - uses 5MB RAM, NO FFmpeg process during download
+  // Strategy 1: Try single pre-muxed MP4 stream (format 18 / best mp4) with client rotation
   for (const client of clients) {
     try {
       console.log(`🎬 Downloading YouTube pre-muxed MP4 [client=${client}]: ${youtubeUrl}`);
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
       // Format 18 is YouTube's standard pre-muxed 360p/480p H.264+AAC MP4 file — downloads directly via HTTP without FFmpeg
-      const cmd = `"${ytdlpPath}" ${cookiesArg} --force-ipv4 --geo-bypass --no-check-certificates --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "18/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
+      const cmd = `"${ytdlpPath}" ${cookiesArg} --js-runtimes "node:${nodeBin}" --force-ipv4 --geo-bypass --no-check-certificates --extractor-args "youtube:player_client=${client}" --user-agent "${userAgent}" -f "18/best[ext=mp4]/best" -o "${outputPath}" "${youtubeUrl}"`;
 
       await new Promise((resolve, reject) => {
         exec(cmd, { timeout: 120000, env: execEnv }, (err, stdout, stderr) => {
