@@ -7,6 +7,14 @@ const apiClient = axios.create({
 });
 
 const api = {
+  warmupServer: async () => {
+    try {
+      await apiClient.get('/api/health', { timeout: 15000 });
+    } catch (e) {
+      // Ignore background warmup ping errors
+    }
+  },
+
   uploadVideo: async (file, duration, aspectRatio = '9:16', onProgress) => {
     const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks to bypass Render 30s timeout
 

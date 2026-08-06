@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import UploadBox from '../components/UploadBox';
 import DurationSelector from '../components/DurationSelector';
@@ -16,6 +16,11 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  // Auto-ping backend server on homepage mount to wake up Render cold-start in background
+  useEffect(() => {
+    api.warmupServer();
+  }, []);
 
   const handleFileSelect = (selectedFile) => {
     setFile(selectedFile);
@@ -50,7 +55,12 @@ export default function Home() {
       router.push(`/result/${jobId}`);
     } catch (err) {
       console.error(err);
-      setError('Failed to process video. Please make sure the backend server is running and try again.');
+      const serverMsg = err.response?.data?.error || err.message;
+      if (serverMsg && !serverMsg.includes('Network Error')) {
+        setError(serverMsg);
+      } else {
+        setError('Server is warming up or connecting. Please try again in 5 seconds.');
+      }
       setUploading(false);
     }
   };
