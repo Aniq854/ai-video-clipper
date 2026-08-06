@@ -4,6 +4,11 @@ import HeaderAds from '../components/HeaderAds';
 export const metadata = {
   title: 'ClipAI — AI Video Clipping Tool',
   description: 'Transform your long videos into viral clips using AI.',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({ children }) {
