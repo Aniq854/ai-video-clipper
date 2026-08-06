@@ -51,13 +51,13 @@ app.use(express.json());
 
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
-// Cloudflare R2 Credentials
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || 'd6b13fc9417a519ce96a010eff9a91b1';
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || '3d2ed7998a5d0767a2b3d5eac2cef9be';
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || '1d0a21728210f60f5ab729712b02f9242c530198a60e31646ae2ef760a9aae4d';
+// Cloudflare R2 Credentials (strictly environment variables)
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || '';
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || '';
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || '';
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'clipper-media-storage';
-const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://pub-${R2_ACCOUNT_ID}.r2.dev`;
+const R2_ENDPOINT = process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : '');
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || (R2_ACCOUNT_ID ? `https://pub-${R2_ACCOUNT_ID}.r2.dev` : '');
 
 const s3Client = new S3Client({
   region: 'auto',

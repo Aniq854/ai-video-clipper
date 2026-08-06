@@ -66,9 +66,9 @@ graph TD
 - **Start Command:** `node server.js`
 - **Environment Variables:**
   - `PORT` = `4000`
-  - `R2_ACCOUNT_ID` = `d6b13fc9417a519ce96a010eff9a91b1`
-  - `R2_ACCESS_KEY_ID` = `3d2ed7998a5d0767a2b3d5eac2cef9be`
-  - `R2_SECRET_ACCESS_KEY` = `1d0a21728210f60f5ab729712b02f9242c530198a60e31646ae2ef760a9aae4d`
+  - `R2_ACCOUNT_ID` = `[YOUR_R2_ACCOUNT_ID]`
+  - `R2_ACCESS_KEY_ID` = `[YOUR_R2_ACCESS_KEY_ID]`
+  - `R2_SECRET_ACCESS_KEY` = `[YOUR_R2_SECRET_ACCESS_KEY]`
   - `R2_BUCKET_NAME` = `clipper-media-storage`
 
 ---
