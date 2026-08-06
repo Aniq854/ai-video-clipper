@@ -49,6 +49,46 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
+// Cloudflare R2 Credentials
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || 'd6b13fc9417a519ce96a010eff9a91b1';
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || '3d2ed7998a5d0767a2b3d5eac2cef9be';
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || '1d0a21728210f60f5ab729712b02f9242c530198a60e31646ae2ef760a9aae4d';
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'clipper-media-storage';
+const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://pub-${R2_ACCOUNT_ID}.r2.dev`;
+
+const s3Client = new S3Client({
+  region: 'auto',
+  endpoint: R2_ENDPOINT,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
+});
+
+async function uploadToR2(filePath, fileName) {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const fileStream = fs.createReadStream(filePath);
+    const uploadParams = {
+      Bucket: R2_BUCKET_NAME,
+      Key: fileName,
+      Body: fileStream,
+      ContentType: 'video/mp4'
+    };
+
+    await s3Client.send(new PutObjectCommand(uploadParams));
+    const publicUrl = `${R2_PUBLIC_URL}/${fileName}`;
+    console.log(`☁️ Successfully uploaded clip to Cloudflare R2: ${publicUrl}`);
+    return publicUrl;
+  } catch (err) {
+    console.warn(`⚠️ Cloudflare R2 upload notice: ${err.message}`);
+    return null;
+  }
+}
+
 const TEMP_DIR = path.join(__dirname, 'temp');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
@@ -957,22 +997,26 @@ async function processJobInMemory(jobId) {
           .run();
       });
 
+      // Auto-upload clip to Cloudflare R2 Object Storage
+      const r2Url = await uploadToR2(clipPath, `${clipId}.mp4`);
+
       const generatedClip = {
         _id: clipId,
         jobId,
         title: titles[index % titles.length],
         clipPath,
+        r2Url: r2Url || null,
         startTime,
         endTime: startTime + clipDuration,
         duration: clipDuration,
         reason: reasons[index % reasons.length],
         viralityScore: scores[index % scores.length],
-        previewUrl: `/api/preview/${clipId}`,
-        downloadUrl: `/api/download/${clipId}`
+        previewUrl: r2Url || `/api/preview/${clipId}`,
+        downloadUrl: r2Url || `/api/download/${clipId}`
       };
 
       clipsStore.set(clipId, generatedClip);
-      console.log(`✅ Clip ${index + 1}/${startTimes.length} created: ${clipId} (${startTime}s -> ${startTime + clipDuration}s)`);
+      console.log(`✅ Clip ${index + 1}/${startTimes.length} created: ${clipId} (${startTime}s -> ${startTime + clipDuration}s)` + (r2Url ? ` [Cloudflare R2]` : ''));
     }
 
     updateStatus('generating_thumbnails', 98);
@@ -1002,7 +1046,12 @@ app.get('/api/jobs/:id/clips', (req, res) => {
 // GET /api/preview/:clipId
 app.get('/api/preview/:clipId', (req, res) => {
   const clip = clipsStore.get(req.params.clipId);
-  if (!clip || !fs.existsSync(clip.clipPath)) {
+  if (!clip) return res.status(404).json({ error: 'Clip preview not found' });
+  if (clip.r2Url) return res.redirect(clip.r2Url);
+  if (!fs.existsSync(clip.clipPath)) return res.status(404).json({ error: 'File missing' });
+  res.setHeader('Content-Type', 'video/mp4');
+  fs.createReadStream(clip.clipPath).pipe(res);
+});
     return res.status(404).json({ error: 'Clip preview not found' });
   }
   res.setHeader('Content-Type', 'video/mp4');
