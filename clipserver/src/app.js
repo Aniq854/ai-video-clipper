@@ -17,7 +17,13 @@ app.use(express.json());
 
 // Health Check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend AI Clipper running' });
+  const mongoose = require('mongoose');
+  res.json({ 
+    status: 'ok', 
+    message: 'Backend AI Clipper running',
+    mongoState: mongoose.connection.readyState,
+    mongoUriLength: process.env.MONGODB_URI ? process.env.MONGODB_URI.length : 0
+  });
 });
 
 // Routes
