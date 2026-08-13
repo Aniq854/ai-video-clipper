@@ -33,8 +33,21 @@ const downloadVideo = (youtubeUrl, outputPath) => {
       '--ffmpeg-location', path.dirname(ffmpegInstaller.path),
       '-f', 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=480]/best',
       '-o', outputPath,
-      youtubeUrl,
     ];
+
+    // Check for cookies file to bypass bot detection
+    const renderCookiesPath = '/etc/secrets/cookies.txt';
+    const localCookiesPath = path.resolve(__dirname, '../../../../cookies.txt');
+    
+    if (fs.existsSync(renderCookiesPath)) {
+      args.push('--cookies', renderCookiesPath);
+    } else if (fs.existsSync(localCookiesPath)) {
+      args.push('--cookies', localCookiesPath);
+    } else if (fs.existsSync('cookies.txt')) {
+      args.push('--cookies', 'cookies.txt');
+    }
+
+    args.push(youtubeUrl);
 
     execFile(ytdlpPath, args, { timeout: 15 * 60 * 1000, maxBuffer: 1024 * 1024 * 20 }, (error, stdout, stderr) => {
       if (error) {
