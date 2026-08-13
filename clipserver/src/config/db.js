@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const connectDB = async () => {
   try {
     const options = {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 60000,
     };
 
     const conn = await mongoose.connect(process.env.MONGODB_URI, options);
@@ -14,7 +14,7 @@ const connectDB = async () => {
     try {
       // Try fallback connection without srv or with tls options
       const conn = await mongoose.connect(process.env.MONGODB_URI, {
-        serverSelectionTimeoutMS: 10000,
+        serverSelectionTimeoutMS: 60000,
         tls: true,
         tlsAllowInvalidCertificates: true
       });
