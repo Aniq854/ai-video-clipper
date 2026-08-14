@@ -29,6 +29,8 @@ const downloadVideo = (youtubeUrl, outputPath) => {
       '--force-ipv4',
       '--no-check-certificates',
       '--no-playlist',
+      '--js-runtimes', 'nodejs',
+      '--extractor-args', 'youtube:player_client=ios,web',
       '--ffmpeg-location', path.dirname(ffmpegInstaller.path),
       '-f', 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=480]/best',
       '-o', outputPath,
