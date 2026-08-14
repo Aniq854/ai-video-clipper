@@ -29,13 +29,25 @@ const downloadVideo = (youtubeUrl, outputPath) => {
       '--force-ipv4',
       '--no-check-certificates',
       '--no-playlist',
-      '--proxy', 'socks5://127.0.0.1:8086',
       '--js-runtimes', 'node',
       '--extractor-args', 'youtube:player_client=ios,web',
       '--ffmpeg-location', path.dirname(ffmpegInstaller.path),
       '-f', 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=480]/best',
       '-o', outputPath,
     ];
+
+    // Add HTTP/HTTPS proxy if credentials are provided in environment variables
+    const proxyHost = process.env.PROXY_HOST;
+    const proxyPort = process.env.PROXY_PORT;
+    const proxyUser = process.env.PROXY_USER;
+    const proxyPass = process.env.PROXY_PASS;
+    
+    if (proxyHost && proxyPort && proxyUser && proxyPass) {
+      args.push('--proxy', `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`);
+    } else if (proxyHost && proxyPort) {
+      // In case the proxy doesn't require authentication
+      args.push('--proxy', `http://${proxyHost}:${proxyPort}`);
+    }
 
     // Check for cookies file to bypass bot detection
     const renderCookiesPath = '/etc/secrets/cookies.txt';
