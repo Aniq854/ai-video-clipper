@@ -26,9 +26,10 @@ const downloadVideo = (youtubeUrl, outputPath) => {
     const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 
     const args = [
-      '--force-ipv6',
+      '--force-ipv4',
       '--no-check-certificates',
       '--no-playlist',
+      '--proxy', 'socks5://127.0.0.1:8086',
       '--js-runtimes', 'node',
       '--extractor-args', 'youtube:player_client=ios,web',
       '--ffmpeg-location', path.dirname(ffmpegInstaller.path),

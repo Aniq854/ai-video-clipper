@@ -4,7 +4,8 @@
   "description": "Backend for AI Video Clipping Tool",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "postinstall": "curl -L https://github.com/bepass-org/warp-plus/releases/latest/download/warp-plus_linux-amd64.zip -o warp.zip && unzip -o warp.zip && chmod +x warp-plus && rm warp.zip",
+    "start": "bash start.sh",
     "worker": "node src/worker/worker.js"
   },
   "dependencies": {
