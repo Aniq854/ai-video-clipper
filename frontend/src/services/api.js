@@ -1,9 +1,12 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://f9e888db24c81f28-139-135-36-186.serveousercontent.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://2da170ee053354e2-139-135-36-186.serveousercontent.com';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
+  headers: {
+    'serveo-skip-browser-warning': 'true'
+  }
 });
 
 const api = {
