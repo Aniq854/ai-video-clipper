@@ -13,7 +13,7 @@ if (process.env.REDIS_PASSWORD) {
 }
 
 // Upstash requires TLS
-if (process.env.REDIS_TLS === 'true') {
+if (process.env.REDIS_TLS === 'true' || redisConfig.host.includes('upstash.io')) {
   redisConfig.tls = { rejectUnauthorized: false };
 }
 
