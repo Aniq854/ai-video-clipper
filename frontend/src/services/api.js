@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://38ade15064bcfd92-139-135-36-186.serveousercontent.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://a88b71a965aad422-139-135-36-186.serveousercontent.com';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
